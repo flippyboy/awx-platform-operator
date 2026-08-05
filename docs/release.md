@@ -4,10 +4,10 @@
 
 | Track | Frequency | What ships |
 |-------|-----------|------------|
-| Operator / chart | ~biweekly or on demand | `awx-operator` image + Helm chart |
-| Component images | Steady cadence via **images repo** | jewel-with-ui, platform-ui, optional awx |
+| Operator / chart | ~biweekly or on demand | `awx-platform-operator` image + Helm chart |
+| Component images | Independent trains in **images repo** | `platform-ui-v*`, `jewel-with-ui-v*`, optional `awx-v*` |
 
-Operator releases **pin** component image digests/tags from the latest images-repo release (or known-good pins).
+Operator releases **pin** each component image digest/tag independently (only bump images that moved; see `release/pins.consumer.yaml`).
 
 ## Tag scheme / GHCR paths
 

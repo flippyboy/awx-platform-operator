@@ -1,26 +1,33 @@
 # Component image pins consumed by this operator release.
 # Source of truth for *choosing* pins lives in awx-platform-images (pins.yaml).
-# Copy digests/tags here when cutting an operator release.
+# Each image has an independent release train — bump only what changed.
+#
+# Images repo tags: platform-ui-vX.Y.Z, jewel-with-ui-vX.Y.Z (not a single images-v*).
+# Image tags on GHCR are clean semver: ghcr.io/flippyboy/awx/<name>:X.Y.Z
 #
 # schema_version: 1
 
 schema_version: 1
 updated: "1970-01-01T00:00:00Z"
 source_repo: awx-platform-images
-source_release: ""   # e.g. images-v0.1.0
+# Optional pointers to the images-repo git tags last consumed (per component)
+source_releases:
+  platform-ui: ""       # e.g. platform-ui-v0.1.0
+  jewel-with-ui: ""     # e.g. jewel-with-ui-v0.1.0
+  awx: ""
 
 images:
   awx-operator:
     repository: ghcr.io/flippyboy/awx/awx-platform-operator
-    tag: main
+    tag: "0.1.0"
     digest: ""
   jewel-with-ui:
     repository: ghcr.io/flippyboy/awx/jewel-with-ui
-    tag: main
+    tag: "0.1.0"
     digest: ""
   platform-ui:
     repository: ghcr.io/flippyboy/awx/platform-ui
-    tag: main
+    tag: "0.1.0"
     digest: ""
   awx:
     repository: ghcr.io/ansible/awx   # or ghcr.io/flippyboy/awx/awx if rebuilt
