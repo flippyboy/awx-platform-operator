@@ -8,12 +8,12 @@
 # schema_version: 1
 
 schema_version: 1
-updated: "1970-01-01T00:00:00Z"
+updated: "2026-08-05T00:00:00Z"
 source_repo: awx-platform-images
 # Optional pointers to the images-repo git tags last consumed (per component)
 source_releases:
-  platform-ui: ""       # e.g. platform-ui-v0.1.0
-  jewel-with-ui: ""     # e.g. jewel-with-ui-v0.1.0
+  platform-ui: "platform-ui-v0.1.0"
+  jewel-with-ui: "jewel-with-ui-v0.1.0"
   awx: ""
 
 images:
