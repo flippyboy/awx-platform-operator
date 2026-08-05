@@ -1,0 +1,10 @@
+bin/
+dist/
+.venv*/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.tar
+.upstream/
+hack/kind/crds/*.yaml.bak

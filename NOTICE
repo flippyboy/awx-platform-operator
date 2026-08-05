@@ -1,0 +1,15 @@
+awx-platform-operator
+Copyright contributors
+
+This project includes software derived from:
+
+  ansible/awx-operator
+  https://github.com/ansible/awx-operator
+
+and chart layout derived from:
+
+  ansible-community/awx-operator-helm
+  https://github.com/ansible-community/awx-operator-helm
+
+Upstream source is used under the terms of its respective license(s).
+See LICENSE / COPYING in this repository.

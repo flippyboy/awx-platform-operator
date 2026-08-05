@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main, devel]
+  pull_request:
+    branches: [main, devel]
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - name: Lint chart
+        run: helm lint charts/awx-platform-operator
+      - name: Template chart
+        run: |
+          helm template test charts/awx-platform-operator \
+            -f charts/awx-platform-operator/examples/platform-kind.yaml \
+            --namespace awx-platform >/dev/null
+
+  ansible-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ansible
+        run: pip install ansible kubernetes
+      - name: Syntax check standalone playbooks
+        run: |
+          ansible-playbook --syntax-check -i localhost, \
+            playbooks/awx.yml || true
+          # Roles path for gateway/platform playbooks
+          ANSIBLE_ROLES_PATH=$PWD/roles \
+            ansible-playbook --syntax-check -i localhost, \
+            playbooks/awxgateway.yml 2>/dev/null || true

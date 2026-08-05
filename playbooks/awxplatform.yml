@@ -1,0 +1,9 @@
+---
+- hosts: localhost
+  gather_facts: false
+  collections:
+    - kubernetes.core
+  tasks:
+    - name: Include platform role
+      include_role:
+        name: platform

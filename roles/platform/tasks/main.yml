@@ -1,0 +1,160 @@
+---
+# AWXPlatform — create child CRs, wire gateway trust, optional edge Ingress
+
+- name: Derive child resource names
+  set_fact:
+    __controller_name: >-
+      {{ controller.name
+         if controller.name | default('') | length
+         else ansible_operator_meta.name ~ '-controller' }}
+    __gateway_name: >-
+      {{ gateway.name
+         if gateway.name | default('') | length
+         else ansible_operator_meta.name ~ '-gateway' }}
+    __admin_password_secret: >-
+      {{ admin_password_secret
+         if admin_password_secret | default('') | length
+         else ansible_operator_meta.name ~ '-admin-password' }}
+    __postgres_secret: '{{ postgres_configuration_secret | default("") }}'
+    __redis_secret: '{{ redis_configuration_secret | default("") }}'
+    __ingress_type: '{{ ingress.type | default("none") | lower }}'
+
+- name: Label AWXPlatform
+  k8s:
+    state: present
+    definition:
+      apiVersion: '{{ api_version | default("awx.ansible.com/v1beta1") }}'
+      kind: '{{ kind | default("AWXPlatform") }}'
+      name: '{{ ansible_operator_meta.name }}'
+      namespace: '{{ ansible_operator_meta.namespace }}'
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: awx-operator
+          app.kubernetes.io/component: platform
+          app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+  when: set_self_labels | default(true) | bool
+  ignore_errors: true
+
+- name: Ensure shared admin password secret
+  block:
+    - name: Check admin secret
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ __admin_password_secret }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: plat_admin
+
+    - name: Create admin secret if missing
+      when: plat_admin.resources | default([]) | length == 0
+      k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: '{{ __admin_password_secret }}'
+            namespace: '{{ ansible_operator_meta.namespace }}'
+          stringData:
+            password: "{{ lookup('password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+            username: '{{ admin_user | default("admin") }}'
+
+- name: Fail when children requested without postgres secret
+  fail:
+    msg: >-
+      AWXPlatform requires postgres_configuration_secret (external or unmanaged Postgres)
+      when creating gateway or controller children.
+  when:
+    - (gateway.create | default(true) | bool) or (controller.create | default(true) | bool)
+    - __postgres_secret | length == 0
+
+- name: Create child AWXGateway (external Postgres; optional external Redis)
+  when:
+    - gateway.create | default(true) | bool
+    - __postgres_secret | length > 0
+  k8s:
+    state: present
+    definition:
+      apiVersion: awx.ansible.com/v1beta1
+      kind: AWXGateway
+      metadata:
+        name: '{{ __gateway_name }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+        labels:
+          app.kubernetes.io/part-of: '{{ ansible_operator_meta.name }}'
+          app.kubernetes.io/component: gateway
+      spec:
+        image: '{{ gateway.image | default("awx-compose/jewel") }}'
+        image_version: '{{ gateway.image_version | default("local") }}'
+        ui_mode: '{{ gateway.ui_mode | default("baked") }}'
+        ui_image: '{{ gateway.ui_image | default("") }}'
+        envoy_enabled: true
+        admin_user: '{{ admin_user | default("admin") }}'
+        admin_password_secret: '{{ __admin_password_secret }}'
+        postgres_configuration_secret: '{{ __postgres_secret }}'
+        redis_configuration_secret: '{{ __redis_secret }}'
+        # Edge ingress (Phase 3) — applied by gateway role when type=ingress
+        ingress_type: '{{ __ingress_type }}'
+        ingress_class_name: '{{ ingress.ingress_class_name | default("") }}'
+        ingress_hosts: '{{ ingress.hosts | default([]) }}'
+        ingress_tls_secret: '{{ ingress.tls_secret | default("") }}'
+        controller_service: '{{ __controller_name }}-service'
+        controller_service_port: '8052'
+        controller_service_https: false
+
+- name: Detect controller service secret from gateway trust
+  k8s_info:
+    api_version: v1
+    kind: Secret
+    name: '{{ __gateway_name }}-controller-service-secret'
+    namespace: '{{ ansible_operator_meta.namespace }}'
+  register: platform_ctrl_secret
+
+- name: Set trust facts
+  set_fact:
+    __gateway_service_secret: >-
+      {{ (__gateway_name ~ '-controller-service-secret')
+         if (platform_ctrl_secret.resources | default([]) | length > 0)
+         else '' }}
+    __trust_established: '{{ (platform_ctrl_secret.resources | default([]) | length > 0) | bool }}'
+
+- name: Create child AWX (Controller) with gateway consumer + external Postgres
+  when:
+    - controller.create | default(true) | bool
+    - __postgres_secret | length > 0
+  k8s:
+    state: present
+    definition:
+      apiVersion: awx.ansible.com/v1beta1
+      kind: AWX
+      metadata:
+        name: '{{ __controller_name }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+        labels:
+          app.kubernetes.io/part-of: '{{ ansible_operator_meta.name }}'
+          app.kubernetes.io/component: controller
+      spec:
+        admin_user: '{{ admin_user | default("admin") }}'
+        admin_password_secret: '{{ __admin_password_secret }}'
+        postgres_configuration_secret: '{{ __postgres_secret }}'
+        service_type: ClusterIP
+        # Platform mode: no public Controller ingress (Envoy is the edge)
+        ingress_type: none
+        open_source_defaults: '{{ open_source_defaults | default(true) | bool }}'
+        gateway_url: 'https://{{ __gateway_name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
+        gateway_validate_certs: false
+        gateway_service_secret_secret: '{{ __gateway_service_secret }}'
+        image: '{{ controller.image | default("") }}'
+        image_version: '{{ controller.image_version | default("") }}'
+
+- name: Platform status via kubectl subresource
+  shell: |
+    URL="https://{{ __gateway_name }}-envoy.{{ ansible_operator_meta.namespace }}.svc:9080"
+    {% if __ingress_type == 'ingress' and (ingress.hosts | default([]) | length > 0) %}
+    URL="https://{{ (ingress.hosts[0].hostname | default(ingress.hosts[0])) }}"
+    {% endif %}
+    kubectl -n '{{ ansible_operator_meta.namespace }}' patch awxplatform '{{ ansible_operator_meta.name }}' \
+      --type=merge --subresource=status \
+      -p "{\"status\":{\"controllerName\":\"{{ __controller_name }}\",\"gatewayName\":\"{{ __gateway_name }}\",\"URL\":\"$URL\",\"trustEstablished\":{{ __trust_established | lower }},\"conditions\":[{\"type\":\"Scaffold\",\"status\":\"True\",\"reason\":\"ChildrenEnsured\",\"message\":\"Children applied; external Postgres required; trust={{ __trust_established }}\"}]}}"
+  ignore_errors: true
+  changed_when: false

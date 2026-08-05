@@ -1,0 +1,70 @@
+---
+# Platform-level trust is primarily performed by roles/gateway after the
+# registration Job (ServiceAPIRoute api_slug=controller + generate_key).
+# This Job is a lightweight readiness check that the controller service
+# secret exists; used when platform reconcile re-runs after gateway trust.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: '{{ ansible_operator_meta.name }}-trust'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-trust'
+    app.kubernetes.io/managed-by: awx-operator
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: trust-check
+          image: '{{ trust_image | default("mirror.gcr.io/library/python:3.12-slim") }}'
+          env:
+            - name: JEWEL_URL
+              value: 'https://{{ __gateway_name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
+            - name: ADMIN_USER
+              value: '{{ admin_user | default("admin") }}'
+            - name: ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: '{{ __admin_password_secret }}'
+                  key: password
+          command:
+            - python3
+            - -c
+            - |
+              import base64, json, os, ssl, time, urllib.request, urllib.error
+              jewel = os.environ["JEWEL_URL"].rstrip("/")
+              user, pw = os.environ["ADMIN_USER"], os.environ["ADMIN_PASS"]
+              ctx = ssl._create_unverified_context()
+              auth = base64.b64encode(f"{user}:{pw}".encode()).decode()
+
+              def http(method, url):
+                  req = urllib.request.Request(
+                      url,
+                      headers={"Authorization": f"Basic {auth}", "Accept": "application/json"},
+                      method=method,
+                  )
+                  try:
+                      with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
+                          return r.status, json.loads(r.read().decode() or "{}")
+                  except urllib.error.HTTPError as e:
+                      return e.code, {}
+
+              for _ in range(60):
+                  if http("GET", f"{jewel}/api/")[0] == 200:
+                      break
+                  time.sleep(3)
+              else:
+                  raise SystemExit("jewel not ready")
+
+              code, body = http("GET", f"{jewel}/api/gateway/v1/services/")
+              results = body.get("results", []) if isinstance(body, dict) else []
+              slugs = {r.get("api_slug") for r in results}
+              if "controller" not in slugs:
+                  raise SystemExit(
+                      "controller ServiceAPIRoute missing — run gateway reconcile "
+                      "(roles/gateway register Job) first"
+                  )
+              print("trust check ok: controller api_slug registered")

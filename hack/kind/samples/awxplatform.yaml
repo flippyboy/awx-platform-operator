@@ -1,0 +1,31 @@
+apiVersion: awx.ansible.com/v1beta1
+kind: AWXPlatform
+metadata:
+  name: demo
+  namespace: awx-platform
+spec:
+  admin_user: admin
+  open_source_defaults: true
+  # External shared Postgres (required for children). Secret shape:
+  # host, port, database, username, password, type=unmanaged
+  postgres_configuration_secret: platform-pg
+  # Optional external Redis for gateway (url or host+port)
+  # redis_configuration_secret: platform-redis
+  controller:
+    create: true
+    name: demo-controller
+  gateway:
+    create: true
+    name: demo-gateway
+    image: awx-compose/jewel
+    image_version: local
+    ui_mode: baked
+  # Phase 3: set type=ingress + hosts after installing ingress-nginx
+  ingress:
+    type: none
+    # type: ingress
+    # ingress_class_name: nginx
+    # hosts:
+    #   - hostname: awx.localtest.me
+  bootstrap:
+    enabled: true

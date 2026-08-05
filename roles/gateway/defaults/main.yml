@@ -1,0 +1,57 @@
+---
+# Defaults for AWXGateway role (Jewel + optional Envoy)
+# Phase 2 scaffold — deploy path is expanded incrementally.
+
+image: ghcr.io/ansible/jewel
+image_version: latest
+image_pull_policy: IfNotPresent
+image_pull_secrets: []
+
+replicas: 1
+admin_user: admin
+admin_password_secret: ''
+secret_key_secret: ''
+postgres_configuration_secret: ''
+database_name: gateway
+
+# Managed Redis Deployment (default). Skip when redis_url or redis_configuration_secret set.
+redis_image: docker.io/redis
+redis_image_version: "7"
+# External Redis: redis://host:6379/0  OR secret with key url (or host+port)
+redis_url: ''
+redis_configuration_secret: ''
+redis_managed: true
+
+tls_secret: ''
+ui_mode: baked
+ui_image: ''
+
+envoy_enabled: true
+envoy_image: mirror.gcr.io/envoyproxy/envoy
+envoy_image_version: v1.36.6
+
+# Phase 3 — edge Ingress (targets Envoy, not Jewel/Controller)
+ingress_type: none   # none | ingress | route
+ingress_class_name: ''
+ingress_hosts: []
+ingress_tls_secret: ''
+ingress_annotations: ''
+front_end_url: ''
+csrf_trusted_origins: []
+
+service_type: ClusterIP
+resource_requirements: {}
+
+# Service registration + JWT trust bootstrap
+run_register_job: true
+# DNS name of Controller Service (may be empty until AWX is deployed)
+controller_service: ''
+controller_service_port: "8052"
+controller_service_https: false
+# After register Job: generate_service_secret controller → K8s Secret
+generate_controller_service_secret: true
+register_image: mirror.gcr.io/library/python:3.12-slim
+
+# Set by operator meta
+deployment_type: awx
+set_self_labels: true

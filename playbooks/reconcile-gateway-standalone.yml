@@ -1,0 +1,43 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  collections:
+    - kubernetes.core
+  vars:
+    ansible_operator_meta:
+      name: demo-gateway
+      namespace: awx-platform
+    api_version: awx.ansible.com/v1beta1
+    kind: AWXGateway
+    image: awx-compose/jewel
+    image_version: local
+    image_pull_policy: IfNotPresent
+    image_pull_secrets: []
+    replicas: 1
+    admin_user: admin
+    admin_password_secret: demo-gateway-admin-password
+    secret_key_secret: demo-gateway-secret-key
+    postgres_configuration_secret: demo-gateway-pg
+    # Unique DB per gateway instance so SECRET_KEY rotations do not collide
+    database_name: gateway_demo_gateway
+    ui_mode: baked
+    redis_image: mirror.gcr.io/library/redis
+    redis_image_version: "7.4"
+    envoy_enabled: true
+    envoy_image: mirror.gcr.io/envoyproxy/envoy
+    envoy_image_version: v1.36.6
+    service_type: ClusterIP
+    resource_requirements: {}
+    set_self_labels: true
+    csrf_trusted_origins:
+      - https://localhost
+      - https://localhost:8443
+    front_end_url: https://localhost:8443
+    run_register_job: true
+    # Prefer real Controller Service when present (kind-deploy-controller.sh)
+    controller_service: ""
+    controller_service_port: "8043"
+    controller_service_https: true
+  roles:
+    - role: gateway

@@ -1,0 +1,59 @@
+# Controller as AWX CR (installer role) — external Postgres + gateway trust.
+# Applied/reconciled by ./scripts/kind-reconcile-controller.sh
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: demo-controller
+  namespace: awx-platform
+  labels:
+    app.kubernetes.io/part-of: demo
+    app.kubernetes.io/component: controller
+spec:
+  # Images (loaded into kind by reconcile script)
+  image: ghcr.io/ansible/awx
+  image_version: devel
+  image_pull_policy: IfNotPresent
+  # Prefer light EE tags available for kind; override via reconcile vars
+  control_plane_ee_image: quay.io/ansible/awx-ee:latest
+  ee_images:
+    - name: AWX EE (latest)
+      image: quay.io/ansible/awx-ee:latest
+
+  # External Postgres (shared platform-pg or demo-controller-pg)
+  postgres_configuration_secret: demo-controller-pg
+  # Unmanaged: do not deploy operator-managed postgres StatefulSet
+
+  service_type: ClusterIP
+  # Platform mode: no public Controller ingress (Envoy is the edge)
+  ingress_type: none
+
+  admin_user: admin
+  # admin_password_secret created by reconcile if missing
+
+  # Phase 1 gateway consumer
+  gateway_url: https://demo-gateway.awx-platform.svc:8000
+  gateway_validate_certs: false
+  gateway_service_secret_secret: demo-gateway-controller-service-secret
+  open_source_defaults: true
+
+  # Kind-friendly resource requests
+  web_resource_requirements:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  task_resource_requirements:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  ee_resource_requirements:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+  redis_resource_requirements:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+
+  no_log: false
+  projects_persistence: false
+  create_preload_data: false

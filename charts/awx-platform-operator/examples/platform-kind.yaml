@@ -1,0 +1,68 @@
+# Example values for kind + monorepo images
+# helm upgrade --install awx-platform charts/awx-platform-operator -n awx-platform -f this-file
+
+operator:
+  image: ghcr.io/flippyboy/awx-operator
+  tag: "0.1.0"
+  imagePullPolicy: IfNotPresent
+  ansibleDebugLogs: "true"
+
+externalPostgres:
+  enabled: true
+  secretName: platform-pg
+  host: postgres
+  port: 5432
+  dbName: awx
+  username: awx
+  password: awx
+  type: unmanaged
+  sslmode: prefer
+
+# Optional: use shared redis-jewel as external for gateway
+externalRedis:
+  enabled: false
+  # secretName: platform-redis
+  # url: redis://redis-jewel:6379/0
+
+# Prefer umbrella CR when operator is fully built
+AWXPlatform:
+  enabled: true
+  name: demo
+  spec:
+    admin_user: admin
+    open_source_defaults: true
+    controller:
+      create: true
+      name: demo-controller
+    gateway:
+      create: true
+      name: demo-gateway
+      image: ghcr.io/flippyboy/jewel-with-ui
+      image_version: latest
+      ui_mode: baked
+    ingress:
+      type: none
+    bootstrap:
+      enabled: true
+
+# Or enable discrete CRs instead of / in addition to platform:
+AWX:
+  enabled: false
+  name: demo-controller
+  spec:
+    admin_user: admin
+    service_type: ClusterIP
+    ingress_type: none
+    open_source_defaults: true
+    # gateway_url: https://demo-gateway.awx-platform.svc:8000
+    # gateway_validate_certs: false
+    # gateway_service_secret_secret: demo-gateway-controller-service-secret
+
+AWXGateway:
+  enabled: false
+  name: demo-gateway
+  spec:
+    image: ghcr.io/flippyboy/jewel-with-ui
+    image_version: latest
+    ui_mode: baked
+    envoy_enabled: true

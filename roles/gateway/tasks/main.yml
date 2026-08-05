@@ -1,0 +1,306 @@
+---
+# AWXGateway — deploy Jewel + Redis + optional Envoy (Phase 2)
+
+- name: Set meta facts
+  set_fact:
+    __admin_password_secret: >-
+      {{ admin_password_secret
+         if admin_password_secret | default('') | length
+         else ansible_operator_meta.name ~ '-admin-password' }}
+    __secret_key_secret: >-
+      {{ secret_key_secret
+         if secret_key_secret | default('') | length
+         else ansible_operator_meta.name ~ '-secret-key' }}
+
+- name: Label AWXGateway
+  k8s:
+    state: present
+    definition:
+      apiVersion: '{{ api_version | default("awx.ansible.com/v1beta1") }}'
+      kind: '{{ kind | default("AWXGateway") }}'
+      name: '{{ ansible_operator_meta.name }}'
+      namespace: '{{ ansible_operator_meta.namespace }}'
+      metadata:
+        labels:
+          app.kubernetes.io/managed-by: awx-operator
+          app.kubernetes.io/component: gateway
+          app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+  when: set_self_labels | default(true) | bool
+  ignore_errors: true
+
+- name: Load or generate admin password secret
+  block:
+    - name: Check admin password secret
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ __admin_password_secret }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: admin_secret_info
+
+    - name: Set admin password from existing secret
+      set_fact:
+        __admin_password: "{{ admin_secret_info.resources[0].data.password | b64decode }}"
+      when: admin_secret_info.resources | default([]) | length > 0
+
+    - name: Generate admin password
+      set_fact:
+        __admin_password: "{{ lookup('password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+      when: admin_secret_info.resources | default([]) | length == 0
+
+    - name: Apply admin password secret
+      k8s:
+        state: present
+        definition: "{{ lookup('template', 'secrets/admin_password.yaml.j2') | from_yaml }}"
+
+- name: Load or generate Django secret key
+  block:
+    - name: Check secret key secret
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ __secret_key_secret }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: sk_info
+
+    - name: Set secret key from existing
+      set_fact:
+        __secret_key: "{{ sk_info.resources[0].data.SECRET_KEY | b64decode }}"
+      when: sk_info.resources | default([]) | length > 0
+
+    - name: Generate secret key
+      set_fact:
+        __secret_key: "{{ lookup('password', '/dev/null length=50 chars=ascii_letters,digits') }}"
+      when: sk_info.resources | default([]) | length == 0
+
+    - name: Apply secret key secret
+      k8s:
+        state: present
+        definition: "{{ lookup('template', 'secrets/secret_key.yaml.j2') | from_yaml }}"
+
+- name: Resolve postgres connection
+  block:
+    - name: Fail if postgres_configuration_secret missing
+      fail:
+        msg: >-
+          AWXGateway requires postgres_configuration_secret with keys
+          host, port, database, username, password (same shape as AWX postgres secret).
+      when: postgres_configuration_secret | default('') | length == 0
+
+    - name: Read postgres configuration secret
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ postgres_configuration_secret }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: pg_secret
+
+    - name: Parse postgres secret
+      set_fact:
+        __pg_host: "{{ pg_secret.resources[0].data.host | b64decode }}"
+        __pg_port: "{{ pg_secret.resources[0].data.port | default('NTQzMg==') | b64decode }}"
+        __pg_username: "{{ pg_secret.resources[0].data.username | b64decode }}"
+        __pg_password: "{{ pg_secret.resources[0].data.password | b64decode }}"
+        __pg_connect_database: "{{ (pg_secret.resources[0].data.database | default('') | b64decode) if (pg_secret.resources[0].data.database is defined) else 'postgres' }}"
+
+- name: Ensure gateway database exists
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'jobs/init_database.yaml.j2') | from_yaml }}"
+    apply: true
+    force: false
+  # Job names are immutable; delete completed job if we need re-run
+  register: init_db_job
+  ignore_errors: true
+
+- name: Wait for init-db job
+  k8s_info:
+    api_version: batch/v1
+    kind: Job
+    name: '{{ ansible_operator_meta.name }}-init-db'
+    namespace: '{{ ansible_operator_meta.namespace }}'
+  register: init_job
+  until: >-
+    init_job.resources | default([]) | length > 0 and (
+      (init_job.resources[0].status.succeeded | default(0) | int) >= 1
+      or (init_job.resources[0].status.failed | default(0) | int) >= 1
+    )
+  retries: 60
+  delay: 5
+  ignore_errors: true
+
+- name: Resolve Redis (managed vs external)
+  block:
+    - name: Read redis configuration secret
+      when: redis_configuration_secret | default('') | length > 0
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ redis_configuration_secret }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: redis_secret_info
+
+    - name: Set Redis URL from secret
+      when:
+        - redis_configuration_secret | default('') | length > 0
+        - redis_secret_info.resources | default([]) | length > 0
+      set_fact:
+        __redis_url: >-
+          {{
+            (redis_secret_info.resources[0].data.url | b64decode)
+            if (redis_secret_info.resources[0].data.url is defined)
+            else (
+              'redis://'
+              ~ (redis_secret_info.resources[0].data.host | b64decode)
+              ~ ':'
+              ~ (redis_secret_info.resources[0].data.port | default('NjM3OQ==') | b64decode)
+              ~ '/0'
+            )
+          }}
+        __redis_managed: false
+
+    - name: Set Redis URL from redis_url field
+      when:
+        - redis_url | default('') | length > 0
+        - __redis_url is not defined
+      set_fact:
+        __redis_url: '{{ redis_url }}'
+        __redis_managed: false
+
+    - name: Default to managed Redis Service
+      when: __redis_url is not defined
+      set_fact:
+        __redis_url: 'redis://{{ ansible_operator_meta.name }}-redis:6379/0'
+        __redis_managed: '{{ redis_managed | default(true) | bool }}'
+
+    - name: Derive REDIS_HOSTS host:port from URL
+      set_fact:
+        __redis_hosts: >-
+          {{
+            (__redis_url | urlsplit('hostname'))
+            ~ ':'
+            ~ ((__redis_url | urlsplit('port')) | default(6379, true) | string)
+          }}
+
+- name: Apply settings ConfigMap
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'configmaps/settings.yaml.j2') | from_yaml }}"
+    apply: true
+
+- name: Apply managed Redis
+  when: __redis_managed | default(true) | bool
+  k8s:
+    state: present
+    definition: "{{ item }}"
+    apply: true
+  loop: "{{ lookup('template', 'deployments/redis.yaml.j2') | from_yaml_all | list }}"
+
+- name: Apply Jewel deployment and service
+  k8s:
+    state: present
+    definition: "{{ item }}"
+    apply: true
+  loop: "{{ lookup('template', 'deployments/jewel.yaml.j2') | from_yaml_all | list }}"
+
+- name: Wait for Jewel deployment
+  k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: '{{ ansible_operator_meta.name }}'
+    namespace: '{{ ansible_operator_meta.namespace }}'
+  register: jewel_dep
+  until: >-
+    jewel_dep.resources | default([]) | length > 0
+    and (jewel_dep.resources[0].status.readyReplicas | default(0) | int) >= 1
+  retries: 90
+  delay: 10
+
+- name: Apply Envoy
+  when: envoy_enabled | default(true) | bool
+  k8s:
+    state: present
+    definition: "{{ item }}"
+    apply: true
+  loop: "{{ lookup('template', 'deployments/envoy.yaml.j2') | from_yaml_all | list }}"
+
+- name: Apply edge Ingress → Envoy (Phase 3)
+  when:
+    - ingress_type | default('none') | lower == 'ingress'
+    - ingress_hosts | default([]) | length > 0
+  k8s:
+    state: present
+    definition: "{{ lookup('template', 'ingress/ingress.yaml.j2') | from_yaml }}"
+    apply: true
+
+- name: Apply service registration Job (controller API route always registered)
+  when: run_register_job | default(true) | bool
+  block:
+    - name: Remove previous registration Job if present
+      k8s:
+        state: absent
+        api_version: batch/v1
+        kind: Job
+        name: '{{ ansible_operator_meta.name }}-register'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      ignore_errors: true
+
+    - name: Apply trust register ConfigMap and Job
+      k8s:
+        state: present
+        definition: "{{ item }}"
+        apply: true
+      loop: "{{ lookup('template', 'jobs/trust_register.yaml.j2') | from_yaml_all | list }}"
+    - name: Wait for registration Job
+      k8s_info:
+        api_version: batch/v1
+        kind: Job
+        name: '{{ ansible_operator_meta.name }}-register'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: reg_job
+      until: >-
+        reg_job.resources | default([]) | length > 0 and (
+          (reg_job.resources[0].status.succeeded | default(0) | int) >= 1
+          or (reg_job.resources[0].status.failed | default(0) | int) >= 1
+        )
+      retries: 60
+      delay: 5
+      ignore_errors: true
+
+- name: Generate controller service secret (JWT shared key)
+  when:
+    - generate_controller_service_secret | default(true) | bool
+    - run_register_job | default(true) | bool
+  block:
+    - name: Check if controller service secret already exists
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ ansible_operator_meta.name }}-controller-service-secret'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: ctrl_svc_secret_info
+
+    - name: Generate secret via jewel Django API (idempotent if Secret present)
+      when: ctrl_svc_secret_info.resources | default([]) | length == 0
+      block:
+        - name: Render generate-secret script
+          copy:
+            content: "{{ lookup('template', 'scripts/generate_controller_secret.sh.j2') }}"
+            dest: '/tmp/{{ ansible_operator_meta.name }}-gen-controller-secret.sh'
+            mode: '0755'
+        - name: Run generate-secret script
+          command: '/tmp/{{ ansible_operator_meta.name }}-gen-controller-secret.sh'
+          register: gen_svc_secret
+          changed_when: "'created' in gen_svc_secret.stdout"
+
+    - name: Record controller service secret name
+      set_fact:
+        __controller_service_secret: '{{ ansible_operator_meta.name }}-controller-service-secret'
+
+- name: Patch AWXGateway status via kubectl subresource
+  shell: |
+    kubectl -n '{{ ansible_operator_meta.namespace }}' patch awxgateway '{{ ansible_operator_meta.name }}' \
+      --type=merge --subresource=status \
+      -p '{"status":{"URL":"https://{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc:8000","controllerServiceSecret":"{{ ansible_operator_meta.name }}-controller-service-secret","conditions":[{"type":"Ready","status":"True","reason":"Deployed","message":"Jewel gateway ready; controller service secret available"}]}}'
+  ignore_errors: true
+  changed_when: false

@@ -1,0 +1,1 @@
+app.kubernetes.io/version: '{{ (_image | default("awx:latest")).split(":")[-1] | truncate(63, True, "", 0) }}'

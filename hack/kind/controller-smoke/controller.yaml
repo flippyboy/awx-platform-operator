@@ -1,0 +1,430 @@
+# Minimal Controller (web only) for kind JWT / gateway trust tests.
+# Not a full operator-managed AWX — redis TCP + postgres + gateway secret.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: controller-secrets
+  namespace: awx-platform
+  labels:
+    app.kubernetes.io/component: controller
+type: Opaque
+stringData:
+  SECRET_KEY: "kind-controller-dev-secret-key-change-me-32b"
+  admin_password: admin
+  admin_username: admin
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: controller-config
+  namespace: awx-platform
+  labels:
+    app.kubernetes.io/component: controller
+data:
+  settings.py: |
+    # Kind smoke Controller settings (compose-derived)
+    import os
+    import socket
+
+    _secret_path = os.environ.get('AWX_SECRET_KEY_FILE', '/etc/tower/SECRET_KEY')
+    if os.path.exists(_secret_path):
+        with open(_secret_path, 'r', encoding='utf-8') as _f:
+            SECRET_KEY = _f.read().strip()
+    else:
+        SECRET_KEY = os.environ.get('SECRET_KEY', 'insecure-kind-dev-key')
+
+    ADMINS = ()
+    STATIC_ROOT = '/var/lib/awx/public/static'
+    STATIC_URL = '/static/'
+    PROJECTS_ROOT = '/var/lib/awx/projects'
+    JOBOUTPUT_ROOT = '/var/lib/awx/job_status'
+
+    # Kind pods, not docker-compose host layout
+    IS_K8S = True
+    AWX_PROOT_ENABLED = False
+    AWX_AUTO_DEPROVISION_INSTANCES = True
+
+    CLUSTER_HOST_ID = socket.gethostname()
+    SYSTEM_UUID = os.environ.get('SYSTEM_UUID', '00000000-0000-0000-0000-0000000000c1')
+
+    ALLOWED_HOSTS = ['*']
+    INTERNAL_API_URL = 'http://127.0.0.1:8052'
+
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
+    USE_X_FORWARDED_PORT = True
+    USE_X_FORWARDED_HOST = True
+
+    BROADCAST_WEBSOCKET_PORT = 8052
+    BROADCAST_WEBSOCKET_PROTOCOL = 'http'
+    BROADCAST_WEBSOCKET_VERIFY_CERT = False
+
+    DATABASES = {
+        'default': {
+            'ATOMIC_REQUESTS': True,
+            'ENGINE': 'awx.main.db.profiled_pg',
+            'NAME': os.environ.get('DATABASE_NAME', 'awx'),
+            'USER': os.environ.get('DATABASE_USER', 'awx'),
+            'PASSWORD': os.environ.get('DATABASE_PASSWORD', 'awx'),
+            'HOST': os.environ.get('DATABASE_HOST', 'postgres'),
+            'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        }
+    }
+
+    _redis_host = os.environ.get('REDIS_HOST', 'redis-awx')
+    _redis_port = os.environ.get('REDIS_PORT', '6379')
+    BROKER_URL = f'redis://{_redis_host}:{_redis_port}/0'
+    CACHES = {
+        'default': {
+            'BACKEND': 'ansible_base.lib.cache.redis_cache.DABRedisCache',
+            'LOCATION': f'redis://{_redis_host}:{_redis_port}/1',
+        }
+    }
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [BROKER_URL],
+                'capacity': 10000,
+                'group_expiry': 157784760,
+            },
+        }
+    }
+
+    RECEPTORCTL_SOCKET = os.environ.get('RECEPTORCTL_SOCKET', '/var/run/receptor/receptor.sock')
+    AWX_LOGGING_MODE = 'stdout'
+
+    # --- Platform gateway (Jewel) JWT trust ---
+    _jwt_key = os.environ.get('ANSIBLE_BASE_JWT_KEY', 'https://demo-gateway.awx-platform.svc:8000')
+    ANSIBLE_BASE_JWT_KEY = _jwt_key
+    ANSIBLE_BASE_JWT_VALIDATE_CERT = False
+
+    _resource_url = os.environ.get('RESOURCE_SERVER_URL', 'https://demo-gateway.awx-platform.svc:8000')
+    _resource_secret = os.environ.get('RESOURCE_SERVER_SECRET_KEY', '')
+    _secret_file = os.environ.get(
+        'RESOURCE_SERVER_SECRET_KEY_FILE',
+        '/etc/tower/conf.d/controller_service_secret',
+    )
+    if not _resource_secret and os.path.exists(_secret_file):
+        with open(_secret_file, 'r', encoding='utf-8') as _f:
+            _resource_secret = _f.read().strip()
+    if _resource_url and _resource_secret:
+        RESOURCE_SERVER = {
+            'URL': _resource_url,
+            'SECRET_KEY': _resource_secret,
+            'VALIDATE_HTTPS': False,
+        }
+
+    # Open-source license → compliant for Platform UI
+    try:
+        from awx.main.utils import licensing as _awx_licensing
+
+        class _OpenLicenseCompliant:
+            def validate(self):
+                return {
+                    'license_type': 'open',
+                    'valid_key': True,
+                    'subscription_name': 'OPEN',
+                    'product_name': 'AWX',
+                    'compliant': True,
+                    'date_expired': False,
+                    'date_warning': False,
+                    'time_remaining': 60 * 60 * 24 * 365 * 100,
+                    'grace_period_remaining': 0,
+                    'free_instances': 9999999,
+                    'instance_count': 9999999,
+                }
+
+        _awx_licensing.OpenLicense = _OpenLicenseCompliant
+    except Exception:
+        pass
+
+  nginx.conf: |
+    worker_processes 1;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+    events { worker_connections 1024; }
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        server_tokens off;
+        client_max_body_size 100M;
+        access_log /dev/stdout;
+        map $http_upgrade $connection_upgrade {
+            default upgrade;
+            ''      close;
+        }
+        sendfile on;
+        upstream uwsgi { server 127.0.0.1:8050; }
+        upstream daphne { server 127.0.0.1:8051; }
+        server {
+            listen 8052 default_server;
+            server_name _;
+            location /static/ { alias /var/lib/awx/public/static/; }
+            location ~ ^(/websocket/|/api/websocket/) {
+                proxy_pass http://daphne;
+                proxy_http_version 1.1;
+                proxy_buffering off;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+                proxy_set_header Host $http_host;
+            }
+            location / {
+                rewrite ^(.*[^/])$ $1/ permanent;
+                uwsgi_read_timeout 120s;
+                uwsgi_pass uwsgi;
+                include /etc/nginx/uwsgi_params;
+            }
+        }
+        server {
+            listen 8043 ssl;
+            server_name _;
+            ssl_certificate     /etc/nginx/pki/web.crt;
+            ssl_certificate_key /etc/nginx/pki/web.key;
+            ssl_protocols       TLSv1.2 TLSv1.3;
+            location /static/ { alias /var/lib/awx/public/static/; }
+            location ~ ^(/websocket/|/api/websocket/) {
+                proxy_pass http://daphne;
+                proxy_http_version 1.1;
+                proxy_buffering off;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+                proxy_set_header Host $http_host;
+            }
+            location / {
+                rewrite ^(.*[^/])$ $1/ permanent;
+                uwsgi_read_timeout 120s;
+                uwsgi_pass uwsgi;
+                include /etc/nginx/uwsgi_params;
+            }
+        }
+    }
+
+  receptor.conf: |
+    ---
+    - node:
+        id: awx-1
+    - log-level: info
+    - local-only: null
+    - control-service:
+        service: control
+        filename: /var/run/receptor/receptor.sock
+        permissions: '0666'
+
+  entrypoint-web.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "$(id -u)" -ge 500 ]; then
+      echo "awx:x:$(id -u):$(id -g):,,,:/var/lib/awx:/bin/bash" >> /tmp/passwd
+      cat /tmp/passwd > /etc/passwd
+      rm /tmp/passwd
+    fi
+    # Minimal receptor so RECEPTORCTL_SOCKET exists
+    if [ ! -S /var/run/receptor/receptor.sock ]; then
+      receptor --config /etc/receptor/receptor.conf &
+      for _ in $(seq 1 30); do
+        [ -S /var/run/receptor/receptor.sock ] && break
+        sleep 1
+      done
+    fi
+    echo "[awx-web] Waiting for database..."
+    until awx-manage check --database default 2>/dev/null; do sleep 2; done
+    echo "[awx-web] Database is reachable."
+    if [ "${RUN_MIGRATIONS:-0}" = "1" ]; then
+      echo "[awx-web] Running migrations..."
+      awx-manage migrate --noinput
+      ADMIN_USER="${DJANGO_SUPERUSER_USERNAME:-admin}"
+      ADMIN_PASS="${DJANGO_SUPERUSER_PASSWORD:-admin}"
+      ADMIN_EMAIL="${DJANGO_SUPERUSER_EMAIL:-admin@localhost}"
+      awx-manage createsuperuser --noinput --username="$ADMIN_USER" --email="$ADMIN_EMAIL" 2>/dev/null || true
+      awx-manage shell -c "
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    u = User.objects.filter(username='${ADMIN_USER}').first()
+    if u:
+        u.set_password('${ADMIN_PASS}')
+        u.is_superuser = True
+        u.save()
+        print('Password updated for', u.username)
+    "
+      awx-manage register_default_execution_environments 2>/dev/null || true
+    fi
+    echo "[awx-web] Starting supervisord (web)..."
+    exec supervisord -c /etc/supervisord_web.conf
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-web
+  namespace: awx-platform
+  labels:
+    app: controller-web
+    app.kubernetes.io/name: controller-web
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: controller-web
+  template:
+    metadata:
+      labels:
+        app: controller-web
+        app.kubernetes.io/name: controller-web
+        app.kubernetes.io/component: controller
+    spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: gen-tls
+          image: mirror.gcr.io/library/alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache openssl >/dev/null
+              mkdir -p /pki
+              if [ ! -f /pki/web.crt ]; then
+                openssl req -nodes -newkey rsa:2048 -keyout /pki/web.key -out /tmp/csr \
+                  -subj "/CN=controller-web" 2>/dev/null
+                openssl x509 -req -days 3650 -in /tmp/csr -signkey /pki/web.key -out /pki/web.crt 2>/dev/null
+                chmod 644 /pki/web.crt /pki/web.key
+              fi
+          volumeMounts:
+            - name: pki
+              mountPath: /pki
+      containers:
+        - name: controller-web
+          image: ghcr.io/ansible/awx:devel
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "/usr/local/bin/entrypoint-awx-web.sh"]
+          env:
+            - name: DATABASE_NAME
+              value: awx
+            - name: DATABASE_USER
+              value: awx
+            - name: DATABASE_PASSWORD
+              value: awx
+            - name: DATABASE_HOST
+              value: postgres
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: REDIS_HOST
+              value: redis-awx
+            - name: REDIS_PORT
+              value: "6379"
+            - name: RUN_MIGRATIONS
+              value: "1"
+            - name: DJANGO_SUPERUSER_USERNAME
+              value: admin
+            - name: DJANGO_SUPERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: controller-secrets
+                  key: admin_password
+            - name: DJANGO_SUPERUSER_EMAIL
+              value: admin@localhost
+            - name: AWX_SECRET_KEY_FILE
+              value: /etc/tower/SECRET_KEY
+            - name: ANSIBLE_BASE_JWT_KEY
+              value: https://demo-gateway.awx-platform.svc:8000
+            - name: ANSIBLE_BASE_JWT_VALIDATE_CERT
+              value: "false"
+            - name: RESOURCE_SERVER_URL
+              value: https://demo-gateway.awx-platform.svc:8000
+            - name: RESOURCE_SERVER_SECRET_KEY_FILE
+              value: /etc/tower/conf.d/controller_service_secret
+            - name: RECEPTORCTL_SOCKET
+              value: /var/run/receptor/receptor.sock
+            - name: AWX_LOGGING_MODE
+              value: stdout
+          ports:
+            - name: http
+              containerPort: 8052
+            - name: https
+              containerPort: 8043
+          readinessProbe:
+            httpGet:
+              path: /api/v2/ping/
+              port: 8052
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v2/ping/
+              port: 8052
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 6
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tower/conf.d/settings.py
+              subPath: settings.py
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: config
+              mountPath: /etc/receptor/receptor.conf
+              subPath: receptor.conf
+            - name: config
+              mountPath: /usr/local/bin/entrypoint-awx-web.sh
+              subPath: entrypoint-web.sh
+            - name: secret-key
+              mountPath: /etc/tower/SECRET_KEY
+              subPath: SECRET_KEY
+            - name: service-secret
+              mountPath: /etc/tower/conf.d/controller_service_secret
+              subPath: secret
+            - name: pki
+              mountPath: /etc/nginx/pki
+            - name: receptor
+              mountPath: /var/run/receptor
+            - name: projects
+              mountPath: /var/lib/awx/projects
+      volumes:
+        - name: config
+          configMap:
+            name: controller-config
+            defaultMode: 0555
+        - name: secret-key
+          secret:
+            secretName: controller-secrets
+            items:
+              - key: SECRET_KEY
+                path: SECRET_KEY
+        - name: service-secret
+          secret:
+            secretName: demo-gateway-controller-service-secret
+            items:
+              - key: secret
+                path: secret
+            optional: false
+        - name: pki
+          emptyDir: {}
+        - name: receptor
+          emptyDir: {}
+        - name: projects
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: controller-web
+  namespace: awx-platform
+  labels:
+    app: controller-web
+    app.kubernetes.io/component: controller
+spec:
+  selector:
+    app: controller-web
+  ports:
+    - name: http
+      port: 8052
+      targetPort: 8052
+    - name: https
+      port: 8043
+      targetPort: 8043

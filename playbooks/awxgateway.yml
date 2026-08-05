@@ -1,0 +1,10 @@
+---
+# Standalone playbook for AWXGateway (also used by operator watches → role)
+- hosts: localhost
+  gather_facts: false
+  collections:
+    - kubernetes.core
+  tasks:
+    - name: Include gateway role
+      include_role:
+        name: gateway

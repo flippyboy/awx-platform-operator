@@ -1,0 +1,159 @@
+---
+# ConfigMap + Job: register gateway routes via REST; secret generation is
+# performed by the operator host script or a follow-up exec task (Fernet manage).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: '{{ ansible_operator_meta.name }}-trust-script'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/managed-by: awx-operator
+data:
+  register.py: |
+    #!/usr/bin/env python3
+    import base64, json, os, ssl, time, urllib.request, urllib.error
+
+    jewel = os.environ["JEWEL_URL"].rstrip("/")
+    user, pw = os.environ["ADMIN_USER"], os.environ["ADMIN_PASS"]
+    ctrl_svc = os.environ.get("CONTROLLER_SVC", "")
+    ctrl_port = int(os.environ.get("CONTROLLER_PORT", "8052"))
+    ctrl_https = os.environ.get("CONTROLLER_HTTPS", "false").lower() in ("1", "true", "yes")
+    gw_addr = os.environ.get("GATEWAY_ADDRESS", "localhost")
+
+    ctx = ssl._create_unverified_context()
+    auth = base64.b64encode(f"{user}:{pw}".encode()).decode()
+
+    def http(method, url, data=None):
+        headers = {"Authorization": f"Basic {auth}", "Accept": "application/json"}
+        body = None
+        if data is not None:
+            body = json.dumps(data).encode()
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=60) as r:
+                raw = r.read().decode() or "{}"
+                try:
+                    return r.status, json.loads(raw)
+                except Exception:
+                    return r.status, raw
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode() if e.fp else ""
+            try:
+                return e.code, json.loads(raw) if raw else {}
+            except Exception:
+                return e.code, raw
+
+    def list_results(path):
+        code, body = http("GET", f"{jewel}{path}")
+        if code != 200:
+            return []
+        return body.get("results", []) if isinstance(body, dict) else []
+
+    def find(path, name):
+        for i in list_results(path):
+            if i.get("name") == name:
+                return i
+        return None
+
+    def ensure(path, name, payload):
+        ex = find(path, name)
+        if ex:
+            print(f"exists {name} id={ex.get('id')}")
+            return ex
+        code, body = http("POST", f"{jewel}{path}", payload)
+        if code in (200, 201) and isinstance(body, dict) and body.get("id"):
+            print(f"created {name} id={body['id']}")
+            return body
+        ex = find(path, name)
+        if ex:
+            return ex
+        print(f"FAILED {name} {code} {body}")
+        return None
+
+    for _ in range(90):
+        if http("GET", f"{jewel}/api/")[0] == 200:
+            break
+        time.sleep(3)
+    else:
+        raise SystemExit("gateway not ready")
+
+    port = ensure("/api/gateway/v1/http_ports/", "API Port", {
+        "name": "API Port", "number": 9080, "use_https": True, "is_api_port": True,
+    })
+    for st in ("gateway", "controller"):
+        ensure("/api/gateway/v1/service_types/", st, {"name": st})
+    gw_type = find("/api/gateway/v1/service_types/", "gateway")
+    ctrl_type = find("/api/gateway/v1/service_types/", "controller")
+    gw_c = ensure("/api/gateway/v1/service_clusters/", "gateway", {
+        "name": "gateway", "service_type": gw_type["id"], "health_checks_enabled": True,
+    })
+    ctrl_c = ensure("/api/gateway/v1/service_clusters/", "controller", {
+        "name": "controller", "service_type": ctrl_type["id"], "health_checks_enabled": True,
+    })
+    ensure("/api/gateway/v1/service_nodes/", "Gateway Node 1", {
+        "name": "Gateway Node 1", "service_cluster": gw_c["id"], "address": gw_addr,
+    })
+    # Always register controller node+route so generate_service_secret(controller) works.
+    # Address may be a placeholder until the Controller Service exists.
+    ensure("/api/gateway/v1/service_nodes/", "Controller Node", {
+        "name": "Controller Node",
+        "service_cluster": ctrl_c["id"],
+        "address": ctrl_svc or "controller-pending",
+    })
+    if port:
+        ensure("/api/gateway/v1/services/", "Gateway API", {
+            "name": "Gateway API", "api_slug": "gateway", "http_port": port["id"],
+            "service_cluster": gw_c["id"], "is_service_https": True, "service_path": "/",
+            "service_port": 8000, "order": 100, "enable_gateway_auth": False,
+            "description": "Proxy to gateway",
+        })
+        ensure("/api/gateway/v1/services/", "Controller API", {
+            "name": "Controller API", "api_slug": "controller", "http_port": port["id"],
+            "service_cluster": ctrl_c["id"], "is_service_https": ctrl_https,
+            "service_path": "/api/", "service_port": ctrl_port, "order": 2,
+            "enable_gateway_auth": True, "description": "Proxy to controller",
+        })
+    print("registration complete")
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: '{{ ansible_operator_meta.name }}-register'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-register'
+    app.kubernetes.io/managed-by: awx-operator
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: register
+          image: '{{ register_image | default("mirror.gcr.io/library/python:3.12-slim") }}'
+          env:
+            - name: JEWEL_URL
+              value: 'https://{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
+            - name: ADMIN_USER
+              value: '{{ admin_user | default("admin") }}'
+            - name: ADMIN_PASS
+              value: '{{ __admin_password }}'
+            - name: GATEWAY_ADDRESS
+              value: '{{ ansible_operator_meta.name }}'
+            - name: CONTROLLER_SVC
+              value: '{{ controller_service | default("") }}'
+            - name: CONTROLLER_PORT
+              value: '{{ controller_service_port | default("8052") | string }}'
+            - name: CONTROLLER_HTTPS
+              value: '{{ controller_service_https | default(false) | string | lower }}'
+          command: ["python3", "/scripts/register.py"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+      volumes:
+        - name: script
+          configMap:
+            name: '{{ ansible_operator_meta.name }}-trust-script'
+            defaultMode: 0555

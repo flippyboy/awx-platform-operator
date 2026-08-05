@@ -1,0 +1,12 @@
+apiVersion: awx.ansible.com/v1beta1
+kind: AWXGateway
+metadata:
+  name: demo-gateway
+  namespace: awx-platform
+spec:
+  # Local jewel-with-UI from compose build (make build-jewel → awx-compose/jewel:local)
+  image: awx-compose/jewel
+  image_version: local
+  replicas: 1
+  ui_mode: baked
+  envoy_enabled: true

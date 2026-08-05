@@ -1,0 +1,23 @@
+AWX Platform Operator chart {{ .Chart.Version }} installed in namespace {{ .Release.Namespace }}.
+
+Operator image: {{ .Values.operator.image }}:{{ .Values.operator.tag }}
+
+Resources enabled:
+  AWX:         {{ .Values.AWX.enabled }}
+  AWXGateway:  {{ .Values.AWXGateway.enabled }}
+  AWXPlatform: {{ .Values.AWXPlatform.enabled }}
+  externalPostgres: {{ .Values.externalPostgres.enabled }}
+  externalRedis:    {{ .Values.externalRedis.enabled }}
+
+Next steps:
+  1. Ensure the operator image is loadable (kind: kind load / ctr import).
+  2. Check operator logs:
+       kubectl -n {{ .Release.Namespace }} logs deploy/awx-operator-controller-manager -c awx-manager -f
+  3. For monorepo kind without a built operator image, continue using:
+       ./scripts/kind-reconcile-gateway.sh
+       ./scripts/kind-reconcile-controller.sh
+
+Platform mode reminder:
+  - Edge entry is Envoy (not Controller Ingress).
+  - Set gateway_url + gateway_service_secret_secret on AWX after trust secret exists.
+  - Docs: docs/OPERATOR.md and charts/awx-platform-operator/README.md

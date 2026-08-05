@@ -1,0 +1,34 @@
+{{- if .Values.AWXGateway.enabled }}
+{{- $name := .Values.AWXGateway.name | default "awx-gateway" }}
+apiVersion: awx.ansible.com/v1beta1
+kind: AWXGateway
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    {{- with .Values.AWXGateway.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.AWXGateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- /* Merge chart-managed secrets into gateway spec */}}
+  {{- $spec := deepCopy (.Values.AWXGateway.spec | default dict) }}
+  {{- if and .Values.externalPostgres.enabled (not (hasKey $spec "postgres_configuration_secret")) }}
+  {{- $_ := set $spec "postgres_configuration_secret" (include "platform.postgresSecretName" .) }}
+  {{- end }}
+  {{- if and .Values.externalRedis.enabled (not (hasKey $spec "redis_configuration_secret")) }}
+  {{- $_ := set $spec "redis_configuration_secret" (include "platform.redisSecretName" .) }}
+  {{- end }}
+  {{- if and .Values.AWX.enabled (not (hasKey $spec "controller_service")) }}
+  {{- $_ := set $spec "controller_service" (printf "%s-service" .Values.AWX.name) }}
+  {{- $_ := set $spec "controller_service_port" "80" }}
+  {{- $_ := set $spec "controller_service_https" false }}
+  {{- end }}
+  {{- toYaml $spec | nindent 2 }}
+{{- end }}

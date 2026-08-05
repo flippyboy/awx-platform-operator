@@ -1,0 +1,35 @@
+---
+# Defaults for AWXPlatform umbrella role
+admin_user: admin
+admin_password_secret: ''
+open_source_defaults: true
+
+controller:
+  create: true
+  name: ''
+  image: ''
+  image_version: ''
+
+gateway:
+  create: true
+  name: ''
+  image: ghcr.io/ansible/jewel
+  image_version: latest
+  ui_mode: baked
+  ui_image: ''
+
+ingress:
+  type: none
+  ingress_class_name: ''
+  hosts: []
+  tls_secret: ''
+
+bootstrap:
+  enabled: true
+
+# External shared services (required for platform children)
+postgres_configuration_secret: ''
+# Optional external Redis for gateway (Secret keys: url OR host+port)
+redis_configuration_secret: ''
+set_self_labels: true
+deployment_type: awx

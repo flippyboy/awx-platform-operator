@@ -1,0 +1,29 @@
+---
+apiVersion: v2
+name: awx-platform-operator
+description: >-
+  Fork of ansible-community/awx-operator-helm for the AWX platform operator
+  (Controller + Jewel gateway + Envoy + AWXPlatform/AWXGateway CRs).
+type: application
+# Chart version for this monorepo fork
+version: 0.1.0
+# Operator image tag / app version (local build or published fork)
+appVersion: "platform-local"
+home: https://github.com/ansible/awx-operator
+keywords:
+  - awx
+  - ansible
+  - operator
+  - jewel
+  - platform-gateway
+sources:
+  - https://github.com/ansible-community/awx-operator-helm
+  - https://github.com/ansible/awx-operator
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: AWXGateway and AWXPlatform CRDs and Helm resources
+    - kind: added
+      description: External Postgres/Redis secrets for platform mode
+    - kind: changed
+      description: Forked for monorepo platform operator

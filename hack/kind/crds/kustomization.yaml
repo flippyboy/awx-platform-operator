@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - awx.ansible.com_awxs.yaml
+  - awx.ansible.com_awxgateways.yaml
+  - awx.ansible.com_awxplatforms.yaml
+  - awx.ansible.com_awxbackups.yaml
+  - awx.ansible.com_awxrestores.yaml
+  - awx.ansible.com_awxmeshingresses.yaml

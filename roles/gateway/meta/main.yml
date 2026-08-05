@@ -1,0 +1,6 @@
+---
+galaxy_info:
+  role_name: gateway
+  description: Deploy Jewel platform gateway and optional Envoy
+  license: Apache-2.0
+dependencies: []

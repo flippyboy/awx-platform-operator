@@ -1,0 +1,28 @@
+{{- if .Values.AWXPlatform.enabled }}
+{{- $name := .Values.AWXPlatform.name | default "awx-platform" }}
+apiVersion: awx.ansible.com/v1beta1
+kind: AWXPlatform
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    {{- with .Values.AWXPlatform.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.AWXPlatform.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- $spec := deepCopy (.Values.AWXPlatform.spec | default dict) }}
+  {{- if and .Values.externalPostgres.enabled (not (hasKey $spec "postgres_configuration_secret")) }}
+  {{- $_ := set $spec "postgres_configuration_secret" (include "platform.postgresSecretName" .) }}
+  {{- end }}
+  {{- if and .Values.externalRedis.enabled (not (hasKey $spec "redis_configuration_secret")) }}
+  {{- $_ := set $spec "redis_configuration_secret" (include "platform.redisSecretName" .) }}
+  {{- end }}
+  {{- toYaml $spec | nindent 2 }}
+{{- end }}

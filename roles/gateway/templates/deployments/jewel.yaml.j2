@@ -1,0 +1,150 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: '{{ ansible_operator_meta.name }}'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/managed-by: awx-operator
+    app.kubernetes.io/part-of: '{{ ansible_operator_meta.name }}'
+spec:
+  replicas: {{ replicas | default(1) }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/managed-by: awx-operator
+    spec:
+      securityContext:
+        fsGroup: 1000
+{% if image_pull_secrets | default([]) | length %}
+      imagePullSecrets:
+{% for s in image_pull_secrets %}
+        - name: {{ s }}
+{% endfor %}
+{% endif %}
+      initContainers:
+        - name: gen-tls
+          image: '{{ init_tls_image | default("mirror.gcr.io/library/alpine:3.20") }}'
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              if command -v apk >/dev/null 2>&1; then apk add --no-cache openssl >/dev/null; fi
+              if [ ! -s /tls/tls.crt ]; then
+                openssl req -nodes -newkey rsa:2048 -keyout /tls/tls.key -out /tmp/csr \
+                  -subj "/CN={{ ansible_operator_meta.name }}" 2>/dev/null
+                openssl x509 -req -days 3650 -in /tmp/csr -signkey /tls/tls.key -out /tls/tls.crt 2>/dev/null
+                chmod 644 /tls/tls.crt /tls/tls.key
+              fi
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+      containers:
+        - name: jewel
+          image: '{{ image }}:{{ image_version }}'
+          imagePullPolicy: '{{ image_pull_policy | default("IfNotPresent") }}'
+          securityContext:
+            runAsUser: 1000
+          env:
+            - name: DJANGO_SETTINGS_MODULE
+              value: aap_gateway_api.settings
+            - name: DATABASE_NAME
+              value: '{{ database_name | default("gateway") }}'
+            - name: DATABASE_USER
+              value: '{{ __pg_username }}'
+            - name: DATABASE_PASSWORD
+              value: '{{ __pg_password }}'
+            - name: DATABASE_HOST
+              value: '{{ __pg_host }}'
+            - name: DATABASE_PORT
+              value: '{{ __pg_port | string }}'
+            - name: REDIS_URL
+              value: '{{ __redis_url | default("redis://" ~ ansible_operator_meta.name ~ "-redis:6379/0") }}'
+            - name: REDIS_TLS
+              value: "false"
+            - name: REDIS_MODE
+              value: standalone
+            - name: REDIS_HOSTS
+              value: '{{ __redis_hosts | default(ansible_operator_meta.name ~ "-redis:6379") }}'
+            - name: REDIS_SSL_CERT_REQS
+              value: none
+            - name: CACHE_KEY_PREFIX
+              value: gateway
+            - name: ENVOY_HOSTNAME
+              value: '{{ ansible_operator_meta.name }}-envoy'
+            - name: ENVOY_VERIFY_HTTPS_CERTIFICATES
+              value: "false"
+            - name: CONTAINER_NUMBER
+              value: "1"
+          ports:
+            - name: https
+              containerPort: 8000
+            - name: grpc
+              containerPort: 50051
+          volumeMounts:
+            - name: secret-key
+              mountPath: /etc/ansible-automation-platform/gateway/SECRET_KEY
+              subPath: SECRET_KEY
+            - name: tls
+              mountPath: /etc/ansible-automation-platform/gateway/gateway.crt
+              subPath: tls.crt
+            - name: tls
+              mountPath: /etc/ansible-automation-platform/gateway/gateway.key
+              subPath: tls.key
+            - name: settings
+              mountPath: /etc/ansible-automation-platform/gateway/settings.py
+              subPath: settings.py
+            - name: settings
+              mountPath: /opt/aap_gateway/src/container-startup.yml
+              subPath: container-startup.yml
+          readinessProbe:
+            httpGet:
+              path: /api/
+              port: 8000
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          resources: {{ resource_requirements | default({}) | to_json }}
+      volumes:
+        - name: secret-key
+          secret:
+            secretName: '{{ __secret_key_secret }}'
+            items:
+              - key: SECRET_KEY
+                path: SECRET_KEY
+        - name: tls
+          emptyDir: {}
+        - name: settings
+          configMap:
+            name: '{{ ansible_operator_meta.name }}-settings'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: '{{ ansible_operator_meta.name }}'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/managed-by: awx-operator
+spec:
+  type: '{{ service_type | default("ClusterIP") }}'
+  selector:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+  ports:
+    - name: https
+      port: 8000
+      targetPort: 8000
+    - name: grpc
+      port: 50051
+      targetPort: 50051

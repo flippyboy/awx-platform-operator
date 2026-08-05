@@ -1,0 +1,43 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: '{{ ansible_operator_meta.name }}-init-db'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-init-db'
+    app.kubernetes.io/managed-by: awx-operator
+  annotations:
+    # Re-run when password/host changes
+    awx.ansible.com/pg-host: '{{ __pg_host }}'
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init-db
+          image: '{{ postgres_client_image | default("mirror.gcr.io/library/postgres:15") }}'
+          env:
+            - name: PGPASSWORD
+              value: '{{ __pg_password }}'
+            - name: PGHOST
+              value: '{{ __pg_host }}'
+            - name: PGUSER
+              value: '{{ __pg_username }}'
+            - name: PGPORT
+              value: '{{ __pg_port | string }}'
+            - name: PGDATABASE
+              value: '{{ __pg_connect_database | default("postgres") }}'
+            - name: GATEWAY_DB
+              value: '{{ database_name | default("gateway") }}'
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              until pg_isready -h "$PGHOST" -U "$PGUSER" -p "$PGPORT"; do sleep 2; done
+              psql -tc "SELECT 1 FROM pg_database WHERE datname='${GATEWAY_DB}'" | grep -q 1 \
+                || psql -c "CREATE DATABASE ${GATEWAY_DB}"
+              echo "database ${GATEWAY_DB} ready"

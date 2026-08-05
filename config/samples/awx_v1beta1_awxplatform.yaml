@@ -1,0 +1,20 @@
+---
+apiVersion: awx.ansible.com/v1beta1
+kind: AWXPlatform
+metadata:
+  name: demo
+spec:
+  admin_user: admin
+  open_source_defaults: true
+  controller:
+    create: true
+    image_version: devel
+  gateway:
+    create: true
+    image: ghcr.io/ansible/jewel
+    image_version: latest
+    ui_mode: none
+  ingress:
+    type: none
+  bootstrap:
+    enabled: true

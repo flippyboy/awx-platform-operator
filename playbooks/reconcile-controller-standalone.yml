@@ -1,0 +1,59 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: true
+  collections:
+    - kubernetes.core
+  vars:
+    ansible_operator_meta:
+      name: demo-controller
+      namespace: awx-platform
+    api_version: awx.ansible.com/v1beta1
+    kind: AWX
+    deployment_type: awx
+    auto_upgrade: true
+    no_log: false
+    set_self_labels: true
+    update_status: true
+    # Images
+    image: ghcr.io/ansible/awx
+    image_version: devel
+    image_pull_policy: IfNotPresent
+    redis_image: mirror.gcr.io/library/redis
+    redis_image_version: 7.4
+    control_plane_ee_image: quay.io/ansible/awx-ee:latest
+    ee_images:
+      - name: AWX EE
+        image: quay.io/ansible/awx-ee:latest
+    init_projects_container_image: quay.io/centos/centos:stream9
+    # External Postgres
+    postgres_configuration_secret: demo-controller-pg
+    # Admin
+    admin_user: admin
+    admin_password_secret: demo-gateway-admin-password
+    # Platform / gateway
+    service_type: ClusterIP
+    ingress_type: none
+    gateway_url: https://demo-gateway.awx-platform.svc:8000
+    gateway_validate_certs: false
+    gateway_service_secret_secret: demo-gateway-controller-service-secret
+    open_source_defaults: true
+    projects_persistence: false
+    create_preload_data: false
+    # Kind-friendly resources
+    web_resource_requirements:
+      requests: {cpu: 50m, memory: 128Mi}
+    task_resource_requirements:
+      requests: {cpu: 50m, memory: 128Mi}
+    ee_resource_requirements:
+      requests: {cpu: 20m, memory: 64Mi}
+    redis_resource_requirements:
+      requests: {cpu: 20m, memory: 32Mi}
+    # Cluster type facts (common role expects these)
+    is_openshift: false
+    is_k8s: true
+    additional_labels: []
+    gating_version: ""
+    idle_deployment: false
+  roles:
+    - role: installer

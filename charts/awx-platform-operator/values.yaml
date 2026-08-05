@@ -1,0 +1,149 @@
+# AWX Platform Operator Helm chart (fork of ansible-community/awx-operator-helm)
+# --------------------------------------------------------------------------
+# Deploys:
+#   - Operator controller (watches AWX, AWXGateway, AWXPlatform, …)
+#   - Optional AWX instance (classic or gateway consumer)
+#   - Optional AWXGateway (Jewel + Envoy)
+#   - Optional AWXPlatform umbrella CR
+#   - Optional external Postgres / Redis secrets
+#
+# Kind monorepo workflow still uses ansible-playbook reconcile scripts when a
+# full operator image is not built. This chart is the install path once the
+# operator image includes gateway/platform roles.
+
+# ---------------------------------------------------------------------------
+# Operator controller image
+# ---------------------------------------------------------------------------
+operator:
+  # Override fully via operator-controller merge (see templates)
+  image: ghcr.io/flippyboy/awx-operator
+  tag: "0.1.0"
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+  # kube-rbac-proxy sidecar
+  kubeRbacProxyImage: quay.io/brancz/kube-rbac-proxy:v0.15.0
+  ansibleDebugLogs: "false"
+
+# Merged into the controller Deployment template (upstream pattern)
+operator-controller: {}
+operator-controller-containers:
+  awx-manager: {}
+  kube-rbac-proxy: {}
+
+rbac:
+  create: true
+
+# ---------------------------------------------------------------------------
+# Shared external Postgres (used by AWX / AWXGateway / AWXPlatform)
+# ---------------------------------------------------------------------------
+# Secret keys: host, port, database, username, password, type, sslmode
+externalPostgres:
+  enabled: false
+  secretName: ""   # default: {release}-postgres-configuration
+  host: postgres
+  port: 5432
+  dbName: awx
+  username: awx
+  # Prefer --set externalPostgres.password=... or existing secret
+  password: ""
+  sslmode: prefer
+  type: unmanaged
+
+# Optional external Redis for Jewel gateway
+# Secret keys: url  OR  host + port
+externalRedis:
+  enabled: false
+  secretName: ""   # default: {release}-redis-configuration
+  url: ""          # e.g. redis://redis.example:6379/0
+  host: ""
+  port: "6379"
+
+# ---------------------------------------------------------------------------
+# Classic / consumer AWX instance
+# ---------------------------------------------------------------------------
+AWX:
+  enabled: false
+  name: awx
+  labels: {}
+  annotations: {}
+  spec:
+    admin_user: admin
+    # Platform mode: leave ingress_type none when using AWXGateway Envoy
+    # ingress_type: none
+    # Gateway consumer (Phase 1):
+    # gateway_url: https://demo-gateway.svc:8000
+    # gateway_validate_certs: false
+    # gateway_service_secret_secret: demo-gateway-controller-service-secret
+    # open_source_defaults: true
+
+  postgres:
+    # When true, chart creates postgres secret from externalPostgres or these fields
+    enabled: false
+    secretName: ""
+    host: Unset
+    port: 5432
+    dbName: Unset
+    username: admin
+    password: Unset
+    sslmode: prefer
+    type: unmanaged
+    target_session_attrs: any
+
+# ---------------------------------------------------------------------------
+# AWXGateway (Jewel + optional Envoy)
+# ---------------------------------------------------------------------------
+AWXGateway:
+  enabled: false
+  name: awx-gateway
+  labels: {}
+  annotations: {}
+  # Spec fields map 1:1 to AWXGateway CR
+  spec:
+    image: ghcr.io/flippyboy/jewel-with-ui
+    image_version: local
+    image_pull_policy: IfNotPresent
+    ui_mode: baked
+    envoy_enabled: true
+    replicas: 1
+    # postgres_configuration_secret set from externalPostgres when enabled
+    # redis_configuration_secret set from externalRedis when enabled
+    # ingress_type: none | ingress
+    # ingress_hosts:
+    #   - hostname: awx.example.com
+    # controller_service: awx-service
+    # controller_service_port: "80"
+
+# ---------------------------------------------------------------------------
+# AWXPlatform umbrella (creates child CRs when operator is running)
+# ---------------------------------------------------------------------------
+AWXPlatform:
+  enabled: false
+  name: awx-platform
+  labels: {}
+  annotations: {}
+  spec:
+    admin_user: admin
+    open_source_defaults: true
+    controller:
+      create: true
+      # name: awx
+    gateway:
+      create: true
+      # name: awx-gateway
+      image: ghcr.io/flippyboy/jewel-with-ui
+      image_version: local
+      ui_mode: baked
+    ingress:
+      type: none
+      # type: ingress
+      # ingress_class_name: nginx
+      # hosts:
+      #   - hostname: awx.example.com
+    bootstrap:
+      enabled: true
+    # postgres_configuration_secret / redis_configuration_secret filled from
+    # externalPostgres / externalRedis when those blocks are enabled
+
+# Upstream customSecrets block (admin password, TLS, etc.) — optional
+# customSecrets:
+#   enabled: false

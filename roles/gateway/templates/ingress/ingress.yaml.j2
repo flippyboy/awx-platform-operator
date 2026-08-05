@@ -1,0 +1,48 @@
+# Phase 3: public edge → Envoy (not Jewel :8000 or Controller)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: '{{ ansible_operator_meta.name }}-envoy'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-envoy'
+    app.kubernetes.io/component: gateway-envoy
+    app.kubernetes.io/managed-by: awx-operator
+{% if ingress_annotations | default('') | length %}
+  annotations:
+    {{ ingress_annotations | indent(4) }}
+{% endif %}
+spec:
+{% if ingress_class_name | default('') | length %}
+  ingressClassName: '{{ ingress_class_name }}'
+{% endif %}
+{% if ingress_tls_secret | default('') | length %}
+  tls:
+    - hosts:
+{% for h in ingress_hosts %}
+      - '{{ h.hostname | default(h) }}'
+{% endfor %}
+      secretName: '{{ ingress_tls_secret }}'
+{% elif ingress_hosts | selectattr('tls_secret', 'defined') | list | length > 0 %}
+  tls:
+{% for h in ingress_hosts %}
+{% if h.tls_secret is defined and h.tls_secret | length %}
+    - hosts:
+        - '{{ h.hostname }}'
+      secretName: '{{ h.tls_secret }}'
+{% endif %}
+{% endfor %}
+{% endif %}
+  rules:
+{% for h in ingress_hosts %}
+    - host: '{{ h.hostname | default(h) }}'
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: '{{ ansible_operator_meta.name }}-envoy'
+                port:
+                  number: 9080
+{% endfor %}

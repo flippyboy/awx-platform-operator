@@ -1,0 +1,12 @@
+---
+apiVersion: awx.ansible.com/v1beta1
+kind: AWXGateway
+metadata:
+  name: demo-gateway
+spec:
+  image: ghcr.io/ansible/jewel
+  image_version: latest
+  replicas: 1
+  admin_user: admin
+  ui_mode: none
+  envoy_enabled: true

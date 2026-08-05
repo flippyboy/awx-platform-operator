@@ -1,0 +1,29 @@
+# Deploy operator + Jewel gateway only (Controller separate or later)
+operator:
+  image: ghcr.io/flippyboy/awx-operator
+  tag: local
+
+externalPostgres:
+  enabled: true
+  host: postgres
+  port: 5432
+  dbName: awx
+  username: awx
+  password: awx
+  type: unmanaged
+
+AWXGateway:
+  enabled: true
+  name: demo-gateway
+  spec:
+    image: ghcr.io/flippyboy/jewel-with-ui
+    image_version: latest
+    ui_mode: baked
+    envoy_enabled: true
+    replicas: 1
+    ingress_type: none
+
+AWX:
+  enabled: false
+AWXPlatform:
+  enabled: false

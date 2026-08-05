@@ -1,0 +1,151 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: awxgateways.awx.ansible.com
+  annotations:
+    controller-gen.kubebuilder.io/version: placeholder
+spec:
+  group: awx.ansible.com
+  names:
+    kind: AWXGateway
+    listKind: AWXGatewayList
+    plural: awxgateways
+    singular: awxgateway
+    shortNames:
+      - awxgw
+  scope: Namespaced
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          description: AWXGateway deploys Jewel (platform gateway) and optional Envoy edge
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              properties:
+                image:
+                  description: Jewel container image repository
+                  type: string
+                  default: ghcr.io/ansible/jewel
+                image_version:
+                  description: Jewel image tag
+                  type: string
+                  default: latest
+                image_pull_policy:
+                  type: string
+                  default: IfNotPresent
+                image_pull_secrets:
+                  type: array
+                  items:
+                    type: string
+                replicas:
+                  type: integer
+                  default: 1
+                admin_user:
+                  type: string
+                  default: admin
+                admin_password_secret:
+                  type: string
+                secret_key_secret:
+                  type: string
+                postgres_configuration_secret:
+                  description: Secret with host/port/database/username/password for gateway DB
+                  type: string
+                database_name:
+                  type: string
+                  default: gateway
+                redis_image:
+                  type: string
+                  default: docker.io/redis
+                redis_image_version:
+                  type: string
+                  default: "7"
+                redis_url:
+                  description: External Redis URL (redis://host:6379/0). Skips managed Redis.
+                  type: string
+                redis_configuration_secret:
+                  description: Secret with url or host+port for external Redis
+                  type: string
+                redis_managed:
+                  description: Deploy managed Redis when true and no external Redis set
+                  type: boolean
+                  default: true
+                tls_secret:
+                  description: TLS secret for Jewel HTTPS (tls.crt/tls.key)
+                  type: string
+                ui_mode:
+                  description: baked | init_copy | none
+                  type: string
+                  default: baked
+                  enum: [baked, init_copy, none]
+                ui_image:
+                  description: Platform UI image when ui_mode=init_copy
+                  type: string
+                envoy_enabled:
+                  description: Deploy Envoy proxy configured for this gateway
+                  type: boolean
+                  default: true
+                envoy_image:
+                  type: string
+                  default: mirror.gcr.io/envoyproxy/envoy
+                envoy_image_version:
+                  type: string
+                  default: v1.36.6
+                # Phase 3 edge (targets Envoy)
+                ingress_type:
+                  type: string
+                  default: none
+                  enum: [none, ingress, route]
+                ingress_class_name:
+                  type: string
+                ingress_hosts:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                ingress_tls_secret:
+                  type: string
+                ingress_annotations:
+                  type: string
+                front_end_url:
+                  type: string
+                service_type:
+                  type: string
+                  default: ClusterIP
+                resource_requirements:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+              properties:
+                URL:
+                  type: string
+                controllerServiceSecret:
+                  description: Name of Secret (key secret) for Controller RESOURCE_SERVER
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: URL
+          type: string
+          jsonPath: .status.URL
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

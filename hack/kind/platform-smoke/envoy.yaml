@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-config
+  namespace: awx-platform
+data:
+  envoy.yaml: |
+    node:
+      id: envoy-gateway-1
+      cluster: envoy
+    dynamic_resources:
+      cds_config:
+        resource_api_version: V3
+        api_config_source:
+          api_type: REST
+          transport_api_version: V3
+          cluster_names: [gateway-control-plane-rest]
+          refresh_delay: {seconds: 15}
+      lds_config:
+        resource_api_version: V3
+        api_config_source:
+          api_type: REST
+          transport_api_version: V3
+          cluster_names: [gateway-control-plane-rest]
+          refresh_delay: {seconds: 15}
+    static_resources:
+      clusters:
+      - name: gateway-control-plane-rest
+        type: STRICT_DNS
+        connect_timeout: 5s
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http_protocol_options: {}
+        load_assignment:
+          cluster_name: gateway-control-plane-rest
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address: {address: jewel, port_value: 8000}
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            common_tls_context:
+              validation_context:
+                trust_chain_verification: ACCEPT_UNTRUSTED
+      - name: gateway_control_plane
+        type: STRICT_DNS
+        connect_timeout: 5s
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http2_protocol_options: {}
+        load_assignment:
+          cluster_name: gateway_control_plane
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address: {address: jewel, port_value: 50051}
+    admin:
+      address:
+        socket_address: {address: 0.0.0.0, port_value: 19000}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy
+  namespace: awx-platform
+  labels:
+    app: envoy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: envoy
+  template:
+    metadata:
+      labels:
+        app: envoy
+    spec:
+      containers:
+        - name: envoy
+          image: mirror.gcr.io/envoyproxy/envoy:v1.36.6
+          args: ["--config-path", "/etc/envoy/envoy.yaml"]
+          env:
+            - name: ENVOY_UID
+              value: "0"
+          ports:
+            - name: https
+              containerPort: 9080
+            - name: admin
+              containerPort: 19000
+          volumeMounts:
+            - name: config
+              mountPath: /etc/envoy/envoy.yaml
+              subPath: envoy.yaml
+            # Path rewrite lua is required once Jewel publishes dynamic LDS;
+            # mount empty placeholder to avoid config errors on static-only boot.
+            - name: lua
+              mountPath: /etc/envoy/envoy-path-rewrite.lua
+              subPath: envoy-path-rewrite.lua
+            - name: tls-placeholder
+              mountPath: /etc/ansible-automation-platform/gateway
+      volumes:
+        - name: config
+          configMap:
+            name: envoy-config
+        - name: lua
+          configMap:
+            name: envoy-lua
+        - name: tls-placeholder
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-lua
+  namespace: awx-platform
+data:
+  envoy-path-rewrite.lua: |
+    function envoy_on_response(handle)
+      -- placeholder; full script from jewel when LDS routes require rewrite
+    end
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy
+  namespace: awx-platform
+spec:
+  selector:
+    app: envoy
+  ports:
+    - name: https
+      port: 9080
+      targetPort: 9080
+    - name: admin
+      port: 19000
+      targetPort: 19000

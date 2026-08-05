@@ -1,0 +1,60 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: '{{ ansible_operator_meta.name }}-redis'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-redis'
+    app.kubernetes.io/component: gateway-redis
+    app.kubernetes.io/managed-by: awx-operator
+    app.kubernetes.io/part-of: '{{ ansible_operator_meta.name }}'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-redis'
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-redis'
+        app.kubernetes.io/component: gateway-redis
+        app.kubernetes.io/managed-by: awx-operator
+    spec:
+      containers:
+        - name: redis
+          image: '{{ redis_image }}:{{ redis_image_version }}'
+          imagePullPolicy: '{{ image_pull_policy | default("IfNotPresent") }}'
+          args:
+            - redis-server
+            - --bind
+            - 0.0.0.0
+            - --protected-mode
+            - "no"
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: '{{ ansible_operator_meta.name }}-redis'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-redis'
+    app.kubernetes.io/managed-by: awx-operator
+spec:
+  selector:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-redis'
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379

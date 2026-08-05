@@ -1,0 +1,17 @@
+---
+# Example: classic AWX behind an external Jewel gateway (Phase 1 consumer mode)
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: awx-behind-gateway
+spec:
+  admin_user: admin
+  service_type: ClusterIP
+  ingress_type: none
+
+  # Reachable FROM controller pods
+  gateway_url: https://demo-gateway.awx.svc:8000
+  gateway_validate_certs: false
+  # Secret must contain key "secret" (from generate_service_secret controller)
+  gateway_service_secret_secret: awx-behind-gateway-gateway-secret
+  open_source_defaults: true
