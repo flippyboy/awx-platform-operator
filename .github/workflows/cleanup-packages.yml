@@ -1,0 +1,70 @@
+name: cleanup-packages
+
+# Delete obsolete GHCR packages from early releases (wrong path / mixed helm+image).
+# Does NOT delete packages under awx/* (correct namespace).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "If true, list targets only (no delete)"
+        type: boolean
+        default: true
+      packages:
+        description: "Comma-separated user package names to delete"
+        type: string
+        # Old operator image was ghcr.io/flippyboy/awx-platform-operator (not under awx/)
+        default: "awx-platform-operator"
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete obsolete user packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PACKAGES: ${{ inputs.packages }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra NAMES <<< "${PACKAGES}"
+          for raw in "${NAMES[@]}"; do
+            name="$(echo "$raw" | xargs)"
+            [[ -z "$name" ]] && continue
+            if [[ "$name" == awx/* ]]; then
+              echo "skip (protected namespace): $name"
+              continue
+            fi
+            echo "=== package: ${OWNER}/${name} ==="
+            enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$name")
+            versions=$(gh api "users/${OWNER}/packages/container/${enc}/versions" --paginate 2>/dev/null || echo "[]")
+            count=$(echo "$versions" | python3 -c 'import sys,json
+try:
+  d=json.load(sys.stdin)
+except Exception:
+  d=[]
+print(len(d) if isinstance(d,list) else 0)')
+            echo "versions: $count"
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "$versions" | python3 -c 'import sys,json
+try:
+  d=json.load(sys.stdin)
+except Exception:
+  d=[]
+for v in d if isinstance(d,list) else []:
+  tags=",".join(v.get("metadata",{}).get("container",{}).get("tags") or []) or "(untagged)"
+  print(f"  id={v.get(\"id\")} tags={tags} updated={v.get(\"updated_at\")}")
+'
+              echo "(dry-run) would DELETE users/${OWNER}/packages/container/${name}"
+              continue
+            fi
+            echo "Deleting package users/${OWNER}/packages/container/${enc}"
+            gh api -X DELETE "users/${OWNER}/packages/container/${enc}" \
+              && echo "deleted $name" \
+              || echo "failed to delete $name (may not exist or insufficient perms)"
+          done
