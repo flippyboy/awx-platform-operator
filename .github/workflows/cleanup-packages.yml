@@ -32,39 +32,55 @@ jobs:
           OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          IFS=',' read -ra NAMES <<< "${PACKAGES}"
-          for raw in "${NAMES[@]}"; do
-            name="$(echo "$raw" | xargs)"
-            [[ -z "$name" ]] && continue
-            if [[ "$name" == awx/* ]]; then
-              echo "skip (protected namespace): $name"
-              continue
-            fi
-            echo "=== package: ${OWNER}/${name} ==="
-            enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$name")
-            versions=$(gh api "users/${OWNER}/packages/container/${enc}/versions" --paginate 2>/dev/null || echo "[]")
-            count=$(echo "$versions" | python3 -c 'import sys,json
-try:
-  d=json.load(sys.stdin)
-except Exception:
-  d=[]
-print(len(d) if isinstance(d,list) else 0)')
-            echo "versions: $count"
-            if [[ "${DRY_RUN}" == "true" ]]; then
-              echo "$versions" | python3 -c 'import sys,json
-try:
-  d=json.load(sys.stdin)
-except Exception:
-  d=[]
-for v in d if isinstance(d,list) else []:
-  tags=",".join(v.get("metadata",{}).get("container",{}).get("tags") or []) or "(untagged)"
-  print(f"  id={v.get(\"id\")} tags={tags} updated={v.get(\"updated_at\")}")
-'
-              echo "(dry-run) would DELETE users/${OWNER}/packages/container/${name}"
-              continue
-            fi
-            echo "Deleting package users/${OWNER}/packages/container/${enc}"
-            gh api -X DELETE "users/${OWNER}/packages/container/${enc}" \
-              && echo "deleted $name" \
-              || echo "failed to delete $name (may not exist or insufficient perms)"
-          done
+          python3 <<'PY'
+          import json, os, subprocess, sys, urllib.parse
+
+          owner = os.environ["OWNER"]
+          dry = os.environ.get("DRY_RUN", "true").lower() == "true"
+          names = [n.strip() for n in os.environ.get("PACKAGES", "").split(",") if n.strip()]
+
+          def gh(*args):
+              r = subprocess.run(
+                  ["gh", "api", *args],
+                  capture_output=True,
+                  text=True,
+              )
+              return r.returncode, r.stdout, r.stderr
+
+          for name in names:
+              if name.startswith("awx/"):
+                  print(f"skip (protected namespace): {name}")
+                  continue
+              print(f"=== package: {owner}/{name} ===")
+              enc = urllib.parse.quote(name, safe="")
+              path = f"users/{owner}/packages/container/{enc}/versions"
+              code, out, err = gh("--paginate", path)
+              if code != 0:
+                  print(f"list versions failed (maybe missing): {err.strip() or out.strip()}")
+                  versions = []
+              else:
+                  try:
+                      versions = json.loads(out) if out.strip() else []
+                  except json.JSONDecodeError:
+                      versions = []
+              print(f"versions: {len(versions)}")
+              for v in versions:
+                  tags = (
+                      (v.get("metadata") or {})
+                      .get("container", {})
+                      .get("tags")
+                      or []
+                  )
+                  tag_s = ",".join(tags) if tags else "(untagged)"
+                  print(f"  id={v.get('id')} tags={tag_s} updated={v.get('updated_at')}")
+              pkg = f"users/{owner}/packages/container/{enc}"
+              if dry:
+                  print(f"(dry-run) would DELETE {pkg}")
+                  continue
+              print(f"Deleting {pkg}")
+              code, out, err = gh("-X", "DELETE", pkg)
+              if code == 0:
+                  print(f"deleted {name}")
+              else:
+                  print(f"failed to delete {name}: {err.strip() or out.strip()}")
+          PY
