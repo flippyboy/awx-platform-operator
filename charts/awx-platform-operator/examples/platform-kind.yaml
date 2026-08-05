@@ -3,7 +3,7 @@
 
 operator:
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "0.1.0"
+  tag: "0.1.1"
   imagePullPolicy: IfNotPresent
   ansibleDebugLogs: "true"
 
