@@ -14,10 +14,28 @@ Component images are built from upstream pins by [`awx-platform-images`](https:/
 
 Derived from [ansible/awx-operator](https://github.com/ansible/awx-operator) (see `NOTICE` / `docs/upstream.md`).
 
+## GHCR packages
+
+All packages live under the `flippyboy/awx` namespace (not the repo root):
+
+| Package | Path |
+|---------|------|
+| Operator image | `ghcr.io/flippyboy/awx/awx-platform-operator` |
+| Helm chart (OCI) | `oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm` |
+| Jewel + UI | `ghcr.io/flippyboy/awx/jewel-with-ui` |
+| Platform UI | `ghcr.io/flippyboy/awx/platform-ui` |
+
+The Helm chart is a **separate** GHCR package from the operator container image (`Chart.yaml` `name: awx-platform-operator-helm`).
+
 ## Quick start (cluster with operator image)
 
 ```bash
-# After building/pushing the operator image
+# From OCI (after a release tag)
+helm upgrade --install awx-platform oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm \
+  --version 0.1.0 -n awx-platform --create-namespace \
+  -f charts/awx-platform-operator/examples/platform-kind.yaml
+
+# Or from a local chart checkout
 helm upgrade --install awx-platform charts/awx-platform-operator \
   -n awx-platform --create-namespace \
   -f charts/awx-platform-operator/examples/platform-kind.yaml
@@ -27,7 +45,7 @@ helm upgrade --install awx-platform charts/awx-platform-operator \
 
 ```bash
 # Requires: kind, kubectl, docker images from awx-platform-images (or local compose builds)
-export JEWEL_IMAGE=ghcr.io/flippyboy/jewel-with-ui:latest   # or awx-compose/jewel:local
+export JEWEL_IMAGE=ghcr.io/flippyboy/awx/jewel-with-ui:latest   # or awx-compose/jewel:local
 ./hack/scripts/kind-up.sh
 ./hack/scripts/kind-reconcile-gateway.sh
 ./hack/scripts/kind-reconcile-controller.sh

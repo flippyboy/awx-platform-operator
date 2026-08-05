@@ -1,6 +1,6 @@
 ---
 apiVersion: v2
-name: awx-platform-operator
+name: awx-platform-operator-helm
 description: >-
   Fork of ansible-community/awx-operator-helm for the AWX platform operator
   (Controller + Jewel gateway + Envoy + AWXPlatform/AWXGateway CRs).

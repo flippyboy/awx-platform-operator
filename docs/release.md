@@ -9,11 +9,14 @@
 
 Operator releases **pin** component image digests/tags from the latest images-repo release (or known-good pins).
 
-## Tag scheme
+## Tag scheme / GHCR paths
 
 - Operator git tag: `v0.1.0`
-- Image: `ghcr.io/<org>/awx-operator:v0.1.0`
-- Chart version: `0.1.0` (aligned with operator semver without `v`)
+- Operator image: `ghcr.io/flippyboy/awx/awx-platform-operator:0.1.0`
+- Helm OCI package (separate from the image): `oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm` (chart version `0.1.0`)
+- Component images (images repo): `ghcr.io/flippyboy/awx/{platform-ui,jewel-with-ui}:…`
+
+Chart package name comes from `Chart.yaml` `name: awx-platform-operator-helm` so Helm OCI push does not share the operator image package.
 
 ## Agent-assisted release (recommended flow)
 
@@ -23,7 +26,7 @@ Operator releases **pin** component image digests/tags from the latest images-re
    - Bump chart `values.yaml` / examples default image refs
    - Bump `Chart.yaml` `version` / `appVersion`
    - Attach release notes (`release/notes/v0.1.0.md`)
-4. Merge + tag `v0.1.0` → GitHub Actions builds operator image + packages chart.
+4. Merge + tag `v0.1.0` → GitHub Actions builds the operator image **and** pushes the Helm chart as its own package.
 
 ## Manual checklist
 

@@ -16,7 +16,7 @@
 # ---------------------------------------------------------------------------
 operator:
   # Override fully via operator-controller merge (see templates)
-  image: ghcr.io/flippyboy/awx-operator
+  image: ghcr.io/flippyboy/awx/awx-platform-operator
   tag: "0.1.0"
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
@@ -99,7 +99,7 @@ AWXGateway:
   annotations: {}
   # Spec fields map 1:1 to AWXGateway CR
   spec:
-    image: ghcr.io/flippyboy/jewel-with-ui
+    image: ghcr.io/flippyboy/awx/jewel-with-ui
     image_version: local
     image_pull_policy: IfNotPresent
     ui_mode: baked
@@ -130,7 +130,7 @@ AWXPlatform:
     gateway:
       create: true
       # name: awx-gateway
-      image: ghcr.io/flippyboy/jewel-with-ui
+      image: ghcr.io/flippyboy/awx/jewel-with-ui
       image_version: local
       ui_mode: baked
     ingress:

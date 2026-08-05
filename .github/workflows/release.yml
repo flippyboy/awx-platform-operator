@@ -11,7 +11,10 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Container image package (separate from Helm chart package)
+  OPERATOR_IMAGE: ghcr.io/flippyboy/awx/awx-platform-operator
+  # Helm OCI package name comes from Chart.yaml (awx-platform-operator-helm)
+  HELM_OCI_REGISTRY: oci://ghcr.io/flippyboy/awx
 
 jobs:
   release:
@@ -33,7 +36,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.OPERATOR_IMAGE }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -52,16 +55,23 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-      - name: Package chart
+      - name: Package and push Helm chart (separate GHCR package)
         run: |
           set -euo pipefail
           mkdir -p dist
           VERSION=${GITHUB_REF_NAME#v}
+          # Chart package name is Chart.yaml "name" → awx-platform-operator-helm
           sed -i "s/^version:.*/version: ${VERSION}/" charts/awx-platform-operator/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: \"${GITHUB_REF_NAME}\"/" charts/awx-platform-operator/Chart.yaml
-          helm package charts/awx-platform-operator -d dist
+          # Ensure operator image default in chart matches this release
+          sed -i "s|^  image:.*|  image: ${OPERATOR_IMAGE}|" charts/awx-platform-operator/values.yaml
+          sed -i "s|^  tag:.*|  tag: \"${VERSION}\"|" charts/awx-platform-operator/values.yaml
 
-      - name: Attach chart to GitHub Release
+          helm package charts/awx-platform-operator -d dist
+          # Push as its own OCI package: ghcr.io/flippyboy/awx/awx-platform-operator-helm
+          helm push dist/awx-platform-operator-helm-*.tgz "${HELM_OCI_REGISTRY}"
+
+      - name: Attach chart tarball to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.tgz

@@ -11,18 +11,18 @@ source_release: ""   # e.g. images-v0.1.0
 
 images:
   awx-operator:
-    repository: ghcr.io/flippyboy/awx-operator
+    repository: ghcr.io/flippyboy/awx/awx-platform-operator
     tag: main
     digest: ""
   jewel-with-ui:
-    repository: ghcr.io/flippyboy/jewel-with-ui
+    repository: ghcr.io/flippyboy/awx/jewel-with-ui
     tag: main
     digest: ""
   platform-ui:
-    repository: ghcr.io/flippyboy/platform-ui
+    repository: ghcr.io/flippyboy/awx/platform-ui
     tag: main
     digest: ""
   awx:
-    repository: ghcr.io/ansible/awx   # or ghcr.io/flippyboy/awx if rebuilt
+    repository: ghcr.io/ansible/awx   # or ghcr.io/flippyboy/awx/awx if rebuilt
     tag: devel
     digest: ""

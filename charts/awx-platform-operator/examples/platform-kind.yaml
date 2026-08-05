@@ -2,7 +2,7 @@
 # helm upgrade --install awx-platform charts/awx-platform-operator -n awx-platform -f this-file
 
 operator:
-  image: ghcr.io/flippyboy/awx-operator
+  image: ghcr.io/flippyboy/awx/awx-platform-operator
   tag: "0.1.0"
   imagePullPolicy: IfNotPresent
   ansibleDebugLogs: "true"
@@ -37,7 +37,7 @@ AWXPlatform:
     gateway:
       create: true
       name: demo-gateway
-      image: ghcr.io/flippyboy/jewel-with-ui
+      image: ghcr.io/flippyboy/awx/jewel-with-ui
       image_version: latest
       ui_mode: baked
     ingress:
@@ -62,7 +62,7 @@ AWXGateway:
   enabled: false
   name: demo-gateway
   spec:
-    image: ghcr.io/flippyboy/jewel-with-ui
+    image: ghcr.io/flippyboy/awx/jewel-with-ui
     image_version: latest
     ui_mode: baked
     envoy_enabled: true
