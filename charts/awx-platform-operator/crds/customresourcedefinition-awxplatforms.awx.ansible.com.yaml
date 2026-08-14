@@ -91,6 +91,16 @@ spec:
                       type: array
                       items:
                         type: string
+                    controller_service_port:
+                      description: Controller Service port passed through to AWXGateway
+                      type: string
+                      default: "80"
+                    controller_service_https:
+                      type: boolean
+                      default: false
+                    envoy_enabled:
+                      type: boolean
+                      default: true
                   x-kubernetes-preserve-unknown-fields: true
                 ingress:
                   type: object

@@ -1,0 +1,54 @@
+---
+{# Rendered then from_yaml so booleans/lists stay native types (not quoted strings). #}
+apiVersion: awx.ansible.com/v1beta1
+kind: AWXGateway
+metadata:
+  name: {{ __gateway_name }}
+  namespace: {{ ansible_operator_meta.namespace }}
+  labels:
+    app.kubernetes.io/part-of: {{ ansible_operator_meta.name }}
+    app.kubernetes.io/component: gateway
+spec:
+  image: {{ gateway.image | default("ghcr.io/flippyboy/awx/jewel-with-ui") }}
+  image_version: "{{ gateway.image_version | default('0.1.0') }}"
+  ui_mode: {{ gateway.ui_mode | default("baked") }}
+{% if gateway.ui_image | default('') | length > 0 %}
+  ui_image: "{{ gateway.ui_image }}"
+{% endif %}
+  envoy_enabled: {{ (gateway.envoy_enabled | default(true)) | bool | ternary(true, false) }}
+{% if gateway.tls_secret | default('') | length > 0 %}
+  tls_secret: "{{ gateway.tls_secret }}"
+{% endif %}
+  create_certificate: {{ (gateway.create_certificate | default(true)) | bool | ternary(true, false) }}
+  create_tls_issuer: {{ (gateway.create_tls_issuer | default(true)) | bool | ternary(true, false) }}
+{% if gateway.create_tls_ca_configmap is defined %}
+  create_tls_ca_configmap: {{ gateway.create_tls_ca_configmap | bool | ternary(true, false) }}
+{% endif %}
+{% if gateway.tls_issuer | default('') | length > 0 %}
+  tls_issuer: "{{ gateway.tls_issuer }}"
+{% endif %}
+  tls_issuer_kind: {{ gateway.tls_issuer_kind | default("Issuer") }}
+{% if gateway.tls_dns_names | default([]) | length > 0 %}
+  tls_dns_names:
+{{ gateway.tls_dns_names | to_nice_yaml | indent(4, true) }}
+{% endif %}
+  admin_user: {{ admin_user | default("admin") }}
+  admin_password_secret: {{ __admin_password_secret }}
+  postgres_configuration_secret: {{ __postgres_secret }}
+{% if __redis_secret | default('') | length > 0 %}
+  redis_configuration_secret: "{{ __redis_secret }}"
+{% endif %}
+  ingress_type: {{ __ingress_type }}
+{% if ingress.ingress_class_name | default('') | length > 0 %}
+  ingress_class_name: "{{ ingress.ingress_class_name }}"
+{% endif %}
+{% if ingress.hosts | default([]) | length > 0 %}
+  ingress_hosts:
+{{ ingress.hosts | to_nice_yaml | indent(4, true) }}
+{% endif %}
+{% if ingress.tls_secret | default('') | length > 0 %}
+  ingress_tls_secret: "{{ ingress.tls_secret }}"
+{% endif %}
+  controller_service: {{ __controller_name }}-service
+  controller_service_port: "{{ gateway.controller_service_port | default('80') }}"
+  controller_service_https: {{ (gateway.controller_service_https | default(false)) | bool | ternary(true, false) }}

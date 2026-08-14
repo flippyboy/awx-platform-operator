@@ -1,0 +1,22 @@
+---
+{# Rendered then from_yaml so booleans stay native types (not quoted strings). #}
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: {{ __controller_name }}
+  namespace: {{ ansible_operator_meta.namespace }}
+  labels:
+    app.kubernetes.io/part-of: {{ ansible_operator_meta.name }}
+    app.kubernetes.io/component: controller
+spec:
+  admin_user: {{ admin_user | default("admin") }}
+  admin_password_secret: {{ __admin_password_secret }}
+  postgres_configuration_secret: {{ __postgres_secret }}
+  service_type: ClusterIP
+  ingress_type: none
+  open_source_defaults: {{ (open_source_defaults | default(true)) | bool | ternary(true, false) }}
+  gateway_url: https://{{ __gateway_name }}.{{ ansible_operator_meta.namespace }}.svc:8000
+  gateway_validate_certs: {{ (gateway_validate_certs | default(false)) | bool | ternary(true, false) }}
+  gateway_service_secret_secret: {{ __gateway_service_secret }}
+  image: {{ controller.image | default("ghcr.io/ansible/awx") }}
+  image_version: "{{ controller.image_version | default('devel') }}"

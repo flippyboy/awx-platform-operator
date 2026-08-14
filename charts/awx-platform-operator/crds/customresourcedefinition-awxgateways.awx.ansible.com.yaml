@@ -169,6 +169,19 @@ spec:
                 service_type:
                   type: string
                   default: ClusterIP
+                controller_service:
+                  description: Kubernetes Service name for Controller (Jewel upstream)
+                  type: string
+                controller_service_port:
+                  description: >-
+                    Controller Service port. Installer exposes ClusterIP 80
+                    (targetPort 8052). Keep as string to match existing CRs.
+                  type: string
+                  default: "80"
+                controller_service_https:
+                  description: Use HTTPS when Jewel talks to Controller
+                  type: boolean
+                  default: false
                 resource_requirements:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true

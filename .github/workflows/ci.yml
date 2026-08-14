@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -29,6 +32,17 @@ jobs:
           helm template test charts/awx-platform-operator \
             -f charts/awx-platform-operator/examples/awx-gateway-only.yaml \
             --namespace awx-platform >/dev/null
+      - name: Check rendered Helm CR types
+        run: |
+          pip install pyyaml jinja2
+          helm template test charts/awx-platform-operator \
+            -f charts/awx-platform-operator/examples/platform-kind.yaml \
+            --namespace awx-platform > /tmp/helm-platform.yaml
+          helm template test charts/awx-platform-operator \
+            -f charts/awx-platform-operator/examples/awx-gateway-only.yaml \
+            --namespace awx-platform > /tmp/helm-gateway.yaml
+          python3 hack/scripts/check-cr-types.py --helm /tmp/helm-platform.yaml
+          python3 hack/scripts/check-cr-types.py --helm /tmp/helm-gateway.yaml
 
   crds:
     runs-on: ubuntu-latest
@@ -66,3 +80,5 @@ jobs:
             echo ">> syntax-check $p"
             ansible-playbook --syntax-check -i localhost, "$p"
           done
+      - name: Check child CR YAML types
+        run: python3 hack/scripts/check-cr-types.py
