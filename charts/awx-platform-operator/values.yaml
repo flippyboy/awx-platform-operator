@@ -17,7 +17,7 @@
 operator:
   # Override fully via operator-controller merge (see templates)
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "0.1.4"
+  tag: "0.1.5"
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
   # kube-rbac-proxy sidecar
