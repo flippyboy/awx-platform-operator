@@ -72,7 +72,7 @@ jobs:
           helm push dist/awx-platform-operator-helm-*.tgz "${HELM_OCI_REGISTRY}"
 
       - name: Attach chart tarball to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*.tgz
           generate_release_notes: true
