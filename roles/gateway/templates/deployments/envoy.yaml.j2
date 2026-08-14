@@ -93,9 +93,15 @@ spec:
       labels:
         app.kubernetes.io/name: '{{ ansible_operator_meta.name }}-envoy'
         app.kubernetes.io/component: gateway-envoy
+      annotations:
+        awx.ansible.com/tls-mode: '{{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}'
+{% if __use_tls_secret | default(false) %}
+        checksum/tls-secret: '{{ __tls_secret }}'
+{% endif %}
     spec:
       # Jewel LDS advertises cert paths under /etc/ansible-automation-platform/gateway/
       # (gateway.crt / gateway.key). Envoy must have real PEM material there.
+{% if not (__use_tls_secret | default(false)) %}
       initContainers:
         - name: gen-tls
           image: '{{ init_tls_image | default("mirror.gcr.io/library/alpine:3.20") }}'
@@ -115,6 +121,7 @@ spec:
           volumeMounts:
             - name: tls
               mountPath: /tls
+{% endif %}
       containers:
         - name: envoy
           image: '{{ envoy_image }}:{{ envoy_image_version }}'
@@ -141,14 +148,36 @@ spec:
             - name: config
               mountPath: /etc/envoy/envoy-path-rewrite.lua
               subPath: envoy-path-rewrite.lua
+{% if __use_tls_secret | default(false) %}
+            # Shared Secret with Jewel; map tls.crt/tls.key → gateway.crt/gateway.key
+            - name: tls
+              mountPath: /etc/ansible-automation-platform/gateway/gateway.crt
+              subPath: tls.crt
+            - name: tls
+              mountPath: /etc/ansible-automation-platform/gateway/gateway.key
+              subPath: tls.key
+{% else %}
             - name: tls
               mountPath: /etc/ansible-automation-platform/gateway
+{% endif %}
       volumes:
         - name: config
           configMap:
             name: '{{ ansible_operator_meta.name }}-envoy-config'
+{% if __use_tls_secret | default(false) %}
+        - name: tls
+          secret:
+            secretName: '{{ __tls_secret }}'
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+            defaultMode: 0644
+{% else %}
         - name: tls
           emptyDir: {}
+{% endif %}
 ---
 apiVersion: v1
 kind: Service

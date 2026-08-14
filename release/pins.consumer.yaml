@@ -19,7 +19,7 @@ source_releases:
 images:
   awx-operator:
     repository: ghcr.io/flippyboy/awx/awx-platform-operator
-    tag: "0.1.1"
+    tag: "0.1.2"
     digest: ""
   jewel-with-ui:
     repository: ghcr.io/flippyboy/awx/jewel-with-ui

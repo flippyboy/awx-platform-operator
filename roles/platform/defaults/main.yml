@@ -17,6 +17,13 @@ gateway:
   image_version: latest
   ui_mode: baked
   ui_image: ''
+  # TLS (cert-manager) — passed through to AWXGateway
+  tls_secret: ''
+  create_certificate: true
+  create_tls_issuer: true
+  tls_issuer: ''
+  tls_issuer_kind: Issuer
+  tls_dns_names: []
 
 ingress:
   type: none

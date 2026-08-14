@@ -1,0 +1,14 @@
+{{- if and .Values.certManager.createIssuer }}
+---
+apiVersion: cert-manager.io/v1
+kind: {{ .Values.certManager.issuerKind | default "Issuer" }}
+metadata:
+  name: {{ .Values.certManager.issuerName | default "awx-platform-selfsigned" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  selfSigned: {}
+{{- end }}

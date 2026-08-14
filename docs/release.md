@@ -12,9 +12,10 @@ Operator releases **pin** each component image digest/tag independently (only bu
 ## Tag scheme / GHCR paths
 
 - Operator git tag: `v0.1.0`
-- Operator image: `ghcr.io/flippyboy/awx/awx-platform-operator:0.1.0`
-- Helm OCI package (separate from the image): `oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm` (chart version `0.1.0`)
+- Operator image: `ghcr.io/flippyboy/awx/awx-platform-operator:0.1.2`
+- Helm OCI package (separate from the image): `oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm` (chart version `0.1.2`)
 - Component images (images repo): `ghcr.io/flippyboy/awx/{platform-ui,jewel-with-ui}:…`
+- Gateway TLS: cert-manager Certificate → shared Secret (see v0.1.2 notes)
 
 Chart package name comes from `Chart.yaml` `name: awx-platform-operator-helm` so Helm OCI push does not share the operator image package.
 

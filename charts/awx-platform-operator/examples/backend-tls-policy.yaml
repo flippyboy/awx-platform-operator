@@ -1,0 +1,45 @@
+# Example: Gateway API BackendTLSPolicy trusting Envoy (and Jewel) TLS.
+#
+# Prerequisites:
+#   - cert-manager issued Secret (default {gateway}-tls)
+#   - ConfigMap {gateway}-tls-ca with key ca.crt (created by gateway role)
+#   - Gateway API CRDs + controller installed in the cluster
+#
+# Adjust names/namespace to match your AWXGateway.
+
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: BackendTLSPolicy
+metadata:
+  name: demo-gateway-envoy-btls
+  namespace: awx-platform
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: demo-gateway-envoy
+      # sectionName: https   # if your Gateway implementation requires it
+  validation:
+    # Hostname must match a DNS SAN on the Certificate
+    hostname: demo-gateway-envoy.awx-platform.svc
+    caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: demo-gateway-tls-ca
+---
+# Optional: also validate direct Jewel HTTPS (port 8000) the same way
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: BackendTLSPolicy
+metadata:
+  name: demo-gateway-jewel-btls
+  namespace: awx-platform
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: demo-gateway
+  validation:
+    hostname: demo-gateway.awx-platform.svc
+    caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: demo-gateway-tls-ca

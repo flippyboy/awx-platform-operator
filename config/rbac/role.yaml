@@ -149,3 +149,17 @@ rules:
       - patch
       - update
       - watch
+  # cert-manager (Jewel + Envoy shared TLS)
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+      - issuers
+    verbs:
+      - get
+      - list
+      - create
+      - delete
+      - patch
+      - update
+      - watch

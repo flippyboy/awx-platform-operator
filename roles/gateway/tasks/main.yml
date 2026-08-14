@@ -188,6 +188,150 @@
     definition: "{{ lookup('template', 'configmaps/settings.yaml.j2') | from_yaml }}"
     apply: true
 
+# ---------------------------------------------------------------------------
+# TLS: cert-manager Certificate (shared Jewel + Envoy) or legacy init gen-tls
+# ---------------------------------------------------------------------------
+- name: Resolve gateway TLS settings
+  set_fact:
+    __tls_secret: >-
+      {{ tls_secret
+         if (tls_secret | default('') | length)
+         else (ansible_operator_meta.name ~ '-tls') }}
+    __tls_issuer: >-
+      {{ tls_issuer
+         if (tls_issuer | default('') | length)
+         else (ansible_operator_meta.name ~ '-selfsigned') }}
+    __tls_ca_configmap: >-
+      {{ tls_ca_configmap
+         if (tls_ca_configmap | default('') | length)
+         else (ansible_operator_meta.name ~ '-tls-ca') }}
+    __create_certificate: '{{ create_certificate | default(true) | bool }}'
+    __create_tls_issuer: '{{ create_tls_issuer | default(true) | bool }}'
+
+- name: Default Certificate DNS SANs
+  when: tls_dns_names | default([]) | length == 0
+  set_fact:
+    __tls_dns_names:
+      - '{{ ansible_operator_meta.name }}'
+      - '{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc'
+      - '{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc.cluster.local'
+      - '{{ ansible_operator_meta.name }}-envoy'
+      - '{{ ansible_operator_meta.name }}-envoy.{{ ansible_operator_meta.namespace }}.svc'
+      - '{{ ansible_operator_meta.name }}-envoy.{{ ansible_operator_meta.namespace }}.svc.cluster.local'
+
+- name: Use provided Certificate DNS SANs
+  when: tls_dns_names | default([]) | length > 0
+  set_fact:
+    __tls_dns_names: '{{ tls_dns_names }}'
+
+- name: Issue TLS via cert-manager
+  when: __create_certificate | bool
+  block:
+    - name: Create self-signed Issuer
+      when:
+        - __create_tls_issuer | bool
+        - (tls_issuer_kind | default('Issuer')) == 'Issuer'
+      k8s:
+        state: present
+        definition: "{{ lookup('template', 'certificates/issuer.yaml.j2') | from_yaml }}"
+        apply: true
+
+    - name: Create Certificate (Jewel + Envoy shared Secret)
+      k8s:
+        state: present
+        definition: "{{ lookup('template', 'certificates/certificate.yaml.j2') | from_yaml }}"
+        apply: true
+
+    - name: Wait for TLS Secret from cert-manager
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ __tls_secret }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: tls_secret_info
+      until: >-
+        tls_secret_info.resources | default([]) | length > 0
+        and ('tls.crt' in (tls_secret_info.resources[0].data | default({})))
+        and ('tls.key' in (tls_secret_info.resources[0].data | default({})))
+      retries: '{{ tls_secret_wait_retries | default(60) | int }}'
+      delay: '{{ tls_secret_wait_delay | default(5) | int }}'
+
+    - name: Set TLS secret mode
+      set_fact:
+        __use_tls_secret: true
+
+    - name: Extract CA PEM for BackendTLSPolicy ConfigMap
+      when: create_tls_ca_configmap | default(true) | bool
+      set_fact:
+        __tls_ca_pem: >-
+          {{
+            (
+              tls_secret_info.resources[0].data['ca.crt']
+              if ('ca.crt' in tls_secret_info.resources[0].data)
+              else tls_secret_info.resources[0].data['tls.crt']
+            ) | b64decode
+          }}
+
+    - name: Publish CA ConfigMap (Gateway API BackendTLSPolicy)
+      when:
+        - create_tls_ca_configmap | default(true) | bool
+        - __tls_ca_pem | default('') | length > 0
+      k8s:
+        state: present
+        definition: "{{ lookup('template', 'certificates/ca-configmap.yaml.j2') | from_yaml }}"
+        apply: true
+  rescue:
+    - name: Fail clearly when cert-manager path requested but unavailable
+      fail:
+        msg: >-
+          AWXGateway create_certificate=true but cert-manager Certificate/Secret
+          '{{ __tls_secret }}' was not ready. Install cert-manager, ensure Issuer
+          '{{ __tls_issuer }}' ({{ tls_issuer_kind | default('Issuer') }}) exists,
+          or set create_certificate=false to use init-generated self-signed TLS,
+          or set tls_secret to an existing kubernetes.tls Secret.
+
+- name: Use provided tls_secret without Certificate create
+  when:
+    - not (__create_certificate | bool)
+    - tls_secret | default('') | length > 0
+  block:
+    - name: Check provided TLS Secret
+      k8s_info:
+        api_version: v1
+        kind: Secret
+        name: '{{ __tls_secret }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      register: provided_tls_secret
+      failed_when: provided_tls_secret.resources | default([]) | length == 0
+
+    - name: Set TLS secret mode from provided secret
+      set_fact:
+        __use_tls_secret: true
+        __tls_ca_pem: >-
+          {{
+            (
+              provided_tls_secret.resources[0].data['ca.crt']
+              if ('ca.crt' in (provided_tls_secret.resources[0].data | default({})))
+              else provided_tls_secret.resources[0].data['tls.crt']
+            ) | b64decode
+          }}
+
+    - name: Publish CA ConfigMap from provided secret
+      when:
+        - create_tls_ca_configmap | default(true) | bool
+        - __tls_ca_pem | default('') | length > 0
+      k8s:
+        state: present
+        definition: "{{ lookup('template', 'certificates/ca-configmap.yaml.j2') | from_yaml }}"
+        apply: true
+
+- name: Legacy init-generated TLS when no Secret path
+  when:
+    - not (__create_certificate | bool)
+    - tls_secret | default('') | length == 0
+  set_fact:
+    __use_tls_secret: false
+
 - name: Apply managed Redis
   when: __redis_managed | default(true) | bool
   k8s:
@@ -301,6 +445,6 @@
   shell: |
     kubectl -n '{{ ansible_operator_meta.namespace }}' patch awxgateway '{{ ansible_operator_meta.name }}' \
       --type=merge --subresource=status \
-      -p '{"status":{"URL":"https://{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc:8000","controllerServiceSecret":"{{ ansible_operator_meta.name }}-controller-service-secret","conditions":[{"type":"Ready","status":"True","reason":"Deployed","message":"Jewel gateway ready; controller service secret available"}]}}'
+      -p '{"status":{"URL":"https://{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc:8000","controllerServiceSecret":"{{ ansible_operator_meta.name }}-controller-service-secret","tlsSecret":"{{ __tls_secret | default("") }}","tlsMode":"{{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}","tlsCAConfigMap":"{{ __tls_ca_configmap | default("") if (__use_tls_secret | default(false)) else "" }}","conditions":[{"type":"Ready","status":"True","reason":"Deployed","message":"Jewel gateway ready; controller service secret available; tls={{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}"}]}}'
   ignore_errors: true
   changed_when: false

@@ -74,6 +74,23 @@ spec:
                       default: baked
                     ui_image:
                       type: string
+                    tls_secret:
+                      type: string
+                    create_certificate:
+                      type: boolean
+                      default: true
+                    create_tls_issuer:
+                      type: boolean
+                      default: true
+                    tls_issuer:
+                      type: string
+                    tls_issuer_kind:
+                      type: string
+                      default: Issuer
+                    tls_dns_names:
+                      type: array
+                      items:
+                        type: string
                   x-kubernetes-preserve-unknown-fields: true
                 ingress:
                   type: object

@@ -28,6 +28,11 @@ kubectl wait --for=condition=Established crd/awxs.awx.ansible.com --timeout=60s
 kubectl wait --for=condition=Established crd/awxgateways.awx.ansible.com --timeout=60s
 kubectl wait --for=condition=Established crd/awxplatforms.awx.ansible.com --timeout=60s
 
+# Gateway TLS (Jewel+Envoy) defaults to cert-manager Certificates
+if [ "${INSTALL_CERT_MANAGER:-true}" = "true" ]; then
+  "$ROOT/hack/scripts/kind-install-cert-manager.sh"
+fi
+
 # Ensure local jewel-with-UI is available inside kind before applying Deployments
 if ! docker image inspect "$JEWEL_IMAGE" >/dev/null 2>&1; then
   if [ "$BUILD_JEWEL" = "true" ] || [ "${1:-}" = "--build" ]; then

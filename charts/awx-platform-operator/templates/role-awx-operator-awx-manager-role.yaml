@@ -148,6 +148,20 @@ rules:
       - awxmeshingresses
     verbs:
       - '*'
+  # cert-manager (shared Jewel + Envoy TLS Certificates / Issuers)
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+      - issuers
+    verbs:
+      - get
+      - list
+      - create
+      - delete
+      - patch
+      - update
+      - watch
   - apiGroups:
       - traefik.containo.us
       - traefik.io

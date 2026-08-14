@@ -83,7 +83,52 @@ spec:
                   type: boolean
                   default: true
                 tls_secret:
-                  description: TLS secret for Jewel HTTPS (tls.crt/tls.key)
+                  description: >-
+                    kubernetes.tls Secret (tls.crt/tls.key) mounted into BOTH Jewel and
+                    Envoy. When create_certificate is true, defaults to {name}-tls
+                    and is issued by cert-manager.
+                  type: string
+                create_certificate:
+                  description: >-
+                    When true (default), create a cert-manager Certificate for
+                    shared Jewel+Envoy TLS. Requires cert-manager. Set false to
+                    use an existing tls_secret or legacy init-generated certs.
+                  type: boolean
+                  default: true
+                create_tls_issuer:
+                  description: >-
+                    When true (default) and create_certificate is true, create a
+                    namespaced self-signed Issuer ({name}-selfsigned).
+                  type: boolean
+                  default: true
+                tls_issuer:
+                  description: Issuer/ClusterIssuer name (default {name}-selfsigned)
+                  type: string
+                tls_issuer_kind:
+                  description: Issuer or ClusterIssuer
+                  type: string
+                  default: Issuer
+                  enum: [Issuer, ClusterIssuer]
+                tls_issuer_group:
+                  type: string
+                  default: cert-manager.io
+                tls_dns_names:
+                  description: DNS SANs for the Certificate (defaults include service FQDNs)
+                  type: array
+                  items:
+                    type: string
+                tls_duration:
+                  type: string
+                  default: 2160h
+                tls_renew_before:
+                  type: string
+                  default: 360h
+                create_tls_ca_configmap:
+                  description: Publish CA ConfigMap for Gateway API BackendTLSPolicy
+                  type: boolean
+                  default: true
+                tls_ca_configmap:
+                  description: Name of CA ConfigMap (default {name}-tls-ca)
                   type: string
                 ui_mode:
                   description: baked | init_copy | none
@@ -136,6 +181,15 @@ spec:
                   type: string
                 controllerServiceSecret:
                   description: Name of Secret (key secret) for Controller RESOURCE_SERVER
+                  type: string
+                tlsSecret:
+                  description: Secret used for Jewel+Envoy TLS
+                  type: string
+                tlsMode:
+                  description: secret | init-generated
+                  type: string
+                tlsCAConfigMap:
+                  description: ConfigMap with ca.crt for BackendTLSPolicy
                   type: string
                 conditions:
                   type: array

@@ -27,6 +27,8 @@ All packages live under the `flippyboy/awx` namespace (not the repo root):
 
 The Helm chart is a **separate** GHCR package from the operator container image (`Chart.yaml` `name: awx-platform-operator-helm`).
 
+**Gateway TLS** defaults to **cert-manager** (shared Secret for Jewel + Envoy + CA ConfigMap for Gateway API `BackendTLSPolicy`). Install cert-manager before enabling gateway with `create_certificate: true` (default).
+
 ## Quick start (cluster with operator image)
 
 ```bash

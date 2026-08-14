@@ -1,6 +1,5 @@
 ---
 # Defaults for AWXGateway role (Jewel + optional Envoy)
-# Phase 2 scaffold — deploy path is expanded incrementally.
 
 image: ghcr.io/ansible/jewel
 image_version: latest
@@ -22,7 +21,34 @@ redis_url: ''
 redis_configuration_secret: ''
 redis_managed: true
 
+# ---------------------------------------------------------------------------
+# TLS for Jewel HTTPS + Envoy listener (shared Secret)
+# ---------------------------------------------------------------------------
+# Prefer cert-manager. When create_certificate is true (default), the gateway
+# role applies an Issuer (optional) + Certificate and mounts the resulting
+# kubernetes.tls Secret into BOTH Jewel and Envoy.
+#
+# Set create_certificate=false and leave tls_secret empty to keep the legacy
+# initContainer self-signed emptyDir path (no cert-manager required).
 tls_secret: ''
+create_certificate: true
+# When true and create_certificate, create a namespaced self-signed Issuer
+create_tls_issuer: true
+tls_issuer: ''                 # default: {name}-selfsigned
+tls_issuer_kind: Issuer        # Issuer | ClusterIssuer
+tls_issuer_group: cert-manager.io
+# DNS SANs for the Certificate (also used as commonName first entry)
+tls_dns_names: []
+# Certificate duration / renew (cert-manager format)
+tls_duration: 2160h    # 90d
+tls_renew_before: 360h # 15d
+# Wait for Secret keys after Certificate is applied
+tls_secret_wait_retries: 60
+tls_secret_wait_delay: 5
+# Optional: publish CA ConfigMap for Gateway API BackendTLSPolicy
+create_tls_ca_configmap: true
+tls_ca_configmap: ''           # default: {name}-tls-ca
+
 ui_mode: baked
 ui_image: ''
 

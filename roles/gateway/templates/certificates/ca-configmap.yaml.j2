@@ -1,0 +1,17 @@
+---
+# CA material extracted from the TLS Secret for Gateway API BackendTLSPolicy.
+# Prefer secret key ca.crt (cert-manager); fall back to tls.crt for self-signed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: '{{ __tls_ca_configmap }}'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+    app.kubernetes.io/component: gateway-tls
+    app.kubernetes.io/managed-by: awx-operator
+  annotations:
+    awx.ansible.com/source-secret: '{{ __tls_secret }}'
+data:
+  ca.crt: |
+{{ __tls_ca_pem | indent(4, true) }}

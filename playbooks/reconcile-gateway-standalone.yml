@@ -27,6 +27,9 @@
     envoy_enabled: true
     envoy_image: mirror.gcr.io/envoyproxy/envoy
     envoy_image_version: v1.36.6
+    # Shared Jewel+Envoy TLS (requires cert-manager; kind-up installs it)
+    create_certificate: true
+    create_tls_issuer: true
     service_type: ClusterIP
     resource_requirements: {}
     set_self_labels: true

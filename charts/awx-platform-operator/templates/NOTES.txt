@@ -9,15 +9,24 @@ Resources enabled:
   externalPostgres: {{ .Values.externalPostgres.enabled }}
   externalRedis:    {{ .Values.externalRedis.enabled }}
 
+TLS / cert-manager:
+  Default gateway TLS uses cert-manager (create_certificate=true).
+  Install cert-manager if not present:
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+  Shared Secret: {gateway}-tls (Jewel + Envoy)
+  CA ConfigMap:  {gateway}-tls-ca  → use with Gateway API BackendTLSPolicy
+  Example: charts/awx-platform-operator/examples/backend-tls-policy.yaml
+  Legacy init-generated TLS: set create_certificate=false (and leave tls_secret empty).
+
 Next steps:
   1. Ensure the operator image is loadable (kind: kind load / ctr import).
   2. Check operator logs:
        kubectl -n {{ .Release.Namespace }} logs deploy/awx-operator-controller-manager -c awx-manager -f
   3. For monorepo kind without a built operator image, continue using:
-       ./scripts/kind-reconcile-gateway.sh
-       ./scripts/kind-reconcile-controller.sh
+       ./hack/scripts/kind-reconcile-gateway.sh
+       ./hack/scripts/kind-reconcile-controller.sh
 
 Platform mode reminder:
   - Edge entry is Envoy (not Controller Ingress).
   - Set gateway_url + gateway_service_secret_secret on AWX after trust secret exists.
-  - Docs: docs/OPERATOR.md and charts/awx-platform-operator/README.md
+  - Docs: docs/architecture.md and charts/awx-platform-operator/README.md

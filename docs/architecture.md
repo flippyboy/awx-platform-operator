@@ -143,13 +143,25 @@ Smoke manifests remain as a lightweight fallback only.
 - Kind: `INSTALL_INGRESS=true` installs ingress-nginx (upstream kind recipe)
 - Controller `ingress_type` stays `none` in platform mode
 
+### Gateway TLS (cert-manager)
+
+Default path (`create_certificate: true`):
+
+1. Namespaced **Issuer** `{gateway}-selfsigned` (selfSigned)
+2. **Certificate** → Secret `{gateway}-tls` (`tls.crt` / `tls.key` / often `ca.crt`)
+3. Same Secret mounted into **Jewel and Envoy** (shared identity)
+4. ConfigMap `{gateway}-tls-ca` with `ca.crt` for **Gateway API BackendTLSPolicy**
+
+Legacy fallback: `create_certificate: false` and empty `tls_secret` → per-pod init OpenSSL into emptyDir (not BackendTLSPolicy-friendly).
+
+Requires cert-manager installed cluster-wide (`hack/scripts/kind-install-cert-manager.sh`).
+
 ### Phase 6 (hardening) remaining
 
 - Full HA for Jewel/Envoy/Postgres
 - Backup/Restore awareness of gateway DB + secrets
 - NetworkPolicies, PodDisruptionBudgets
-- Shared TLS Secret jewel↔Envoy (today separate init-generated PEMs)
-- Real operator Deployment image (vs ansible-playbook reconcile on host)
+- Optional ClusterIssuer / ACME production certs via `tls_issuer_kind: ClusterIssuer`
 
 ---
 

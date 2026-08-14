@@ -1,0 +1,13 @@
+---
+# Namespaced self-signed Issuer for gateway TLS (cert-manager).
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: '{{ __tls_issuer }}'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+    app.kubernetes.io/component: gateway-tls
+    app.kubernetes.io/managed-by: awx-operator
+spec:
+  selfSigned: {}

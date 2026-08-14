@@ -17,7 +17,7 @@
 operator:
   # Override fully via operator-controller merge (see templates)
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "0.1.1"
+  tag: "0.1.2"
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
   # kube-rbac-proxy sidecar
@@ -90,6 +90,25 @@ AWX:
     target_session_attrs: any
 
 # ---------------------------------------------------------------------------
+# cert-manager (required for default gateway TLS)
+# ---------------------------------------------------------------------------
+# Install cert-manager cluster-wide before enabling create_certificate:
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+#   # or: ./hack/scripts/kind-install-cert-manager.sh
+#
+# The operator creates a namespaced self-signed Issuer + Certificate and mounts
+# the resulting Secret into BOTH Jewel and Envoy. A CA ConfigMap is published
+# for Gateway API BackendTLSPolicy (see charts/.../examples/backend-tls-policy.yaml).
+certManager:
+  # Soft dependency flag used by NOTES / docs (operator does not install cert-manager)
+  required: true
+  # Optional chart-managed Issuer (in addition to operator create_tls_issuer).
+  # Leave false when the gateway role creates the Issuer (default path).
+  createIssuer: false
+  issuerName: awx-platform-selfsigned
+  issuerKind: Issuer
+
+# ---------------------------------------------------------------------------
 # AWXGateway (Jewel + optional Envoy)
 # ---------------------------------------------------------------------------
 AWXGateway:
@@ -100,11 +119,19 @@ AWXGateway:
   # Spec fields map 1:1 to AWXGateway CR
   spec:
     image: ghcr.io/flippyboy/awx/jewel-with-ui
-    image_version: local
+    image_version: "0.1.0"
     image_pull_policy: IfNotPresent
     ui_mode: baked
     envoy_enabled: true
     replicas: 1
+    # Shared TLS for Jewel + Envoy (cert-manager)
+    create_certificate: true
+    create_tls_issuer: true
+    # tls_secret: my-gateway-tls   # optional override; default {name}-tls
+    # tls_issuer: my-issuer
+    # tls_issuer_kind: Issuer
+    # tls_dns_names: [awx.example.com]
+    create_tls_ca_configmap: true
     # postgres_configuration_secret set from externalPostgres when enabled
     # redis_configuration_secret set from externalRedis when enabled
     # ingress_type: none | ingress
@@ -127,12 +154,18 @@ AWXPlatform:
     controller:
       create: true
       # name: awx
+      # image: ghcr.io/ansible/awx
+      # image_version: devel
     gateway:
       create: true
       # name: awx-gateway
       image: ghcr.io/flippyboy/awx/jewel-with-ui
-      image_version: local
+      image_version: "0.1.0"
       ui_mode: baked
+      create_certificate: true
+      create_tls_issuer: true
+      # tls_secret: ''
+      # tls_dns_names: []
     ingress:
       type: none
       # type: ingress

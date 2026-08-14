@@ -20,6 +20,12 @@ spec:
         app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
         app.kubernetes.io/component: gateway
         app.kubernetes.io/managed-by: awx-operator
+      annotations:
+        # Roll pods when TLS secret material changes
+        awx.ansible.com/tls-mode: '{{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}'
+{% if __use_tls_secret | default(false) %}
+        checksum/tls-secret: '{{ __tls_secret }}'
+{% endif %}
     spec:
       securityContext:
         fsGroup: 1000
@@ -29,6 +35,7 @@ spec:
         - name: {{ s }}
 {% endfor %}
 {% endif %}
+{% if not (__use_tls_secret | default(false)) %}
       initContainers:
         - name: gen-tls
           image: '{{ init_tls_image | default("mirror.gcr.io/library/alpine:3.20") }}'
@@ -47,6 +54,7 @@ spec:
           volumeMounts:
             - name: tls
               mountPath: /tls
+{% endif %}
       containers:
         - name: jewel
           image: '{{ image }}:{{ image_version }}'
@@ -93,12 +101,21 @@ spec:
             - name: secret-key
               mountPath: /etc/ansible-automation-platform/gateway/SECRET_KEY
               subPath: SECRET_KEY
+{% if __use_tls_secret | default(false) %}
             - name: tls
               mountPath: /etc/ansible-automation-platform/gateway/gateway.crt
               subPath: tls.crt
             - name: tls
               mountPath: /etc/ansible-automation-platform/gateway/gateway.key
               subPath: tls.key
+{% else %}
+            - name: tls
+              mountPath: /etc/ansible-automation-platform/gateway/gateway.crt
+              subPath: tls.crt
+            - name: tls
+              mountPath: /etc/ansible-automation-platform/gateway/gateway.key
+              subPath: tls.key
+{% endif %}
             - name: settings
               mountPath: /etc/ansible-automation-platform/gateway/settings.py
               subPath: settings.py
@@ -122,8 +139,20 @@ spec:
             items:
               - key: SECRET_KEY
                 path: SECRET_KEY
+{% if __use_tls_secret | default(false) %}
+        - name: tls
+          secret:
+            secretName: '{{ __tls_secret }}'
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+            defaultMode: 0644
+{% else %}
         - name: tls
           emptyDir: {}
+{% endif %}
         - name: settings
           configMap:
             name: '{{ ansible_operator_meta.name }}-settings'

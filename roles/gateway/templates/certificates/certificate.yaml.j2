@@ -1,0 +1,28 @@
+---
+# Certificate for Jewel HTTPS + Envoy listener (shared Secret).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: '{{ ansible_operator_meta.name }}-tls'
+  namespace: '{{ ansible_operator_meta.namespace }}'
+  labels:
+    app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+    app.kubernetes.io/component: gateway-tls
+    app.kubernetes.io/managed-by: awx-operator
+spec:
+  secretName: '{{ __tls_secret }}'
+  duration: {{ tls_duration | default('2160h') }}
+  renewBefore: {{ tls_renew_before | default('360h') }}
+  commonName: '{{ __tls_dns_names[0] }}'
+  dnsNames:
+{% for d in __tls_dns_names %}
+    - {{ d }}
+{% endfor %}
+  issuerRef:
+    name: '{{ __tls_issuer }}'
+    kind: '{{ tls_issuer_kind | default("Issuer") }}'
+    group: '{{ tls_issuer_group | default("cert-manager.io") }}'
+  # Ensure ca.crt is present for BackendTLSPolicy / client trust
+  privateKey:
+    algorithm: RSA
+    size: 2048

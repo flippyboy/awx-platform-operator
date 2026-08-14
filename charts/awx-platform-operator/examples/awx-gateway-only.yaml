@@ -1,7 +1,7 @@
 # Deploy operator + Jewel gateway only (Controller separate or later)
 operator:
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: local
+  tag: "0.1.2"
 
 externalPostgres:
   enabled: true
@@ -17,11 +17,14 @@ AWXGateway:
   name: demo-gateway
   spec:
     image: ghcr.io/flippyboy/awx/jewel-with-ui
-    image_version: latest
+    image_version: "0.1.0"
     ui_mode: baked
     envoy_enabled: true
     replicas: 1
     ingress_type: none
+    # Requires cert-manager in the cluster
+    create_certificate: true
+    create_tls_issuer: true
 
 AWX:
   enabled: false

@@ -1,9 +1,11 @@
 # Example values for kind + monorepo images
 # helm upgrade --install awx-platform charts/awx-platform-operator -n awx-platform -f this-file
+#
+# Requires cert-manager (kind-up installs it when INSTALL_CERT_MANAGER=true).
 
 operator:
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "0.1.1"
+  tag: "0.1.2"
   imagePullPolicy: IfNotPresent
   ansibleDebugLogs: "true"
 
@@ -34,12 +36,17 @@ AWXPlatform:
     controller:
       create: true
       name: demo-controller
+      image: ghcr.io/ansible/awx
+      image_version: devel
     gateway:
       create: true
       name: demo-gateway
       image: ghcr.io/flippyboy/awx/jewel-with-ui
-      image_version: latest
+      image_version: "0.1.0"
       ui_mode: baked
+      # Shared Jewel+Envoy TLS via cert-manager
+      create_certificate: true
+      create_tls_issuer: true
     ingress:
       type: none
     bootstrap:
@@ -63,6 +70,8 @@ AWXGateway:
   name: demo-gateway
   spec:
     image: ghcr.io/flippyboy/awx/jewel-with-ui
-    image_version: latest
+    image_version: "0.1.0"
     ui_mode: baked
     envoy_enabled: true
+    create_certificate: true
+    create_tls_issuer: true

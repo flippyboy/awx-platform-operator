@@ -38,6 +38,18 @@ helm template awx-platform charts/awx-platform-operator \
 | `AWX.enabled` | Deploy classic/consumer `AWX` CR |
 | `AWXGateway.enabled` | Deploy `AWXGateway` CR (Jewel + Envoy) |
 | `AWXPlatform.enabled` | Deploy umbrella `AWXPlatform` CR |
+| `AWXGateway.spec.create_certificate` | cert-manager Certificate for shared Jewel+Envoy TLS (default **true**) |
+| `AWXGateway.spec.tls_secret` | Override TLS Secret name (default `{name}-tls`) |
+| `certManager.createIssuer` | Optional Helm-managed Issuer (usually the operator creates it) |
+
+**cert-manager** is required when `create_certificate: true` (default). Install first:
+
+```bash
+./hack/scripts/kind-install-cert-manager.sh
+# or: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+```
+
+Gateway API `BackendTLSPolicy` example: [`examples/backend-tls-policy.yaml`](./examples/backend-tls-policy.yaml).
 
 See `values.yaml` for full schema.
 
