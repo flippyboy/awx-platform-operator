@@ -141,7 +141,8 @@ cat > "$PLAY" <<EOF
       - https://${INGRESS_HOST}
     run_register_job: true
     controller_service: "${CTRL_SVC}"
-    controller_service_port: "8052"
+    # Service port 80 (targetPort 8052) — not the container port
+    controller_service_port: "80"
     controller_service_https: false
   roles:
     - role: gateway

@@ -16,7 +16,8 @@ data:
     jewel = os.environ["JEWEL_URL"].rstrip("/")
     user, pw = os.environ["ADMIN_USER"], os.environ["ADMIN_PASS"]
     ctrl_svc = os.environ.get("CONTROLLER_SVC", "")
-    ctrl_port = int(os.environ.get("CONTROLLER_PORT", "8052"))
+    # Must match AWX Service port (80), not container port 8052
+    ctrl_port = int(os.environ.get("CONTROLLER_PORT", "80"))
     ctrl_https = os.environ.get("CONTROLLER_HTTPS", "false").lower() in ("1", "true", "yes")
     gw_addr = os.environ.get("GATEWAY_ADDRESS", "localhost")
 
@@ -57,8 +58,18 @@ data:
         return None
 
     def ensure(path, name, payload):
+        """Create object if missing; PATCH fields that differ when it already exists."""
         ex = find(path, name)
         if ex:
+            need = {k: payload[k] for k in payload if ex.get(k) != payload[k]}
+            if need:
+                code, body = http("PATCH", f"{jewel}{path}{ex['id']}/", need)
+                print(f"updated {name} {need} -> {code}")
+                if code in (200, 201, 202, 204) and isinstance(body, dict) and body.get("id"):
+                    return body
+                # re-fetch after patch
+                ex2 = find(path, name)
+                return ex2 or ex
             print(f"exists {name} id={ex.get('id')}")
             return ex
         code, body = http("POST", f"{jewel}{path}", payload)
@@ -145,7 +156,7 @@ spec:
             - name: CONTROLLER_SVC
               value: '{{ controller_service | default("") }}'
             - name: CONTROLLER_PORT
-              value: '{{ controller_service_port | default("8052") | string }}'
+              value: '{{ controller_service_port | default("80") | string }}'
             - name: CONTROLLER_HTTPS
               value: '{{ controller_service_https | default(false) | string | lower }}'
           command: ["python3", "/scripts/register.py"]

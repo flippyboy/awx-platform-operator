@@ -15,7 +15,7 @@ cd "$ROOT"
 NS="${GATEWAY_NS:-awx-platform}"
 GW_NAME="${GATEWAY_NAME:-demo-gateway}"
 CTRL_SVC="${CONTROLLER_SVC:-}"   # e.g. awx-demo-service or empty
-CTRL_PORT="${CONTROLLER_PORT:-8052}"
+CTRL_PORT="${CONTROLLER_PORT:-80}"  # Service port (→ targetPort 8052)
 CTRL_HTTPS="${CONTROLLER_HTTPS:-false}"
 FORCE_ROTATE="${FORCE_ROTATE:-false}"
 

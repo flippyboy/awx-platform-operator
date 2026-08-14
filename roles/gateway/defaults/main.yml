@@ -72,7 +72,8 @@ resource_requirements: {}
 run_register_job: true
 # DNS name of Controller Service (may be empty until AWX is deployed)
 controller_service: ''
-controller_service_port: "8052"
+# ClusterIP Service port (installer publishes port 80 → targetPort 8052)
+controller_service_port: "80"
 controller_service_https: false
 # After register Job: generate_service_secret controller → K8s Secret
 generate_controller_service_secret: true

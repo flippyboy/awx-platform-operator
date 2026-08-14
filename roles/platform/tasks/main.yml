@@ -105,9 +105,10 @@
         ingress_class_name: '{{ ingress.ingress_class_name | default("") }}'
         ingress_hosts: '{{ ingress.hosts | default([]) }}'
         ingress_tls_secret: '{{ ingress.tls_secret | default("") }}'
+        # Service port is 80 (targetPort 8052) — see installer networking/service.yaml.j2
         controller_service: '{{ __controller_name }}-service'
-        controller_service_port: '8052'
-        controller_service_https: false
+        controller_service_port: '{{ gateway.controller_service_port | default("80") }}'
+        controller_service_https: {{ gateway.controller_service_https | default(false) | bool | lower }}
 
 - name: Detect controller service secret from gateway trust
   k8s_info:

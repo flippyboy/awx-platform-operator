@@ -24,6 +24,9 @@ gateway:
   tls_issuer: ''
   tls_issuer_kind: Issuer
   tls_dns_names: []
+  # Controller Service port (ClusterIP 80 → container 8052); Jewel/Envoy must use 80
+  controller_service_port: "80"
+  controller_service_https: false
 
 ingress:
   type: none
