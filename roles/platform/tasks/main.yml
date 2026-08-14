@@ -84,8 +84,8 @@
           app.kubernetes.io/part-of: '{{ ansible_operator_meta.name }}'
           app.kubernetes.io/component: gateway
       spec:
-        image: '{{ gateway.image | default("awx-compose/jewel") }}'
-        image_version: '{{ gateway.image_version | default("local") }}'
+        image: '{{ gateway.image | default("ghcr.io/flippyboy/awx/jewel-with-ui") }}'
+        image_version: '{{ gateway.image_version | default("0.1.0") }}'
         ui_mode: '{{ gateway.ui_mode | default("baked") }}'
         ui_image: '{{ gateway.ui_image | default("") }}'
         envoy_enabled: true
@@ -151,8 +151,8 @@
         gateway_url: 'https://{{ __gateway_name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
         gateway_validate_certs: false
         gateway_service_secret_secret: '{{ __gateway_service_secret }}'
-        image: '{{ controller.image | default("") }}'
-        image_version: '{{ controller.image_version | default("") }}'
+        image: '{{ controller.image | default("ghcr.io/ansible/awx") }}'
+        image_version: '{{ controller.image_version | default("devel") }}'
 
 - name: Platform status via kubectl subresource
   shell: |

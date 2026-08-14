@@ -17,7 +17,7 @@
 operator:
   # Override fully via operator-controller merge (see templates)
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "0.1.5"
+  tag: "0.1.6"
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
   # kube-rbac-proxy sidecar
@@ -145,9 +145,12 @@ AWXGateway:
 # ---------------------------------------------------------------------------
 # AWXPlatform umbrella (creates child CRs when operator is running)
 # ---------------------------------------------------------------------------
+# Set enabled: true to deploy a working platform stack. Children names default
+# to {AWXPlatform.name}-controller / {AWXPlatform.name}-gateway.
+# Site-specific: admin_password_secret + postgres_configuration_secret.
 AWXPlatform:
   enabled: false
-  name: awx-platform
+  name: awx
   labels: {}
   annotations: {}
   spec:
@@ -155,25 +158,20 @@ AWXPlatform:
     open_source_defaults: true
     controller:
       create: true
-      # name: awx
-      # image: ghcr.io/ansible/awx
-      # image_version: devel
+      image: ghcr.io/ansible/awx
+      image_version: devel
     gateway:
       create: true
-      # name: awx-gateway
       image: ghcr.io/flippyboy/awx/jewel-with-ui
       image_version: "0.1.0"
       ui_mode: baked
       create_certificate: true
       create_tls_issuer: true
-      # tls_secret: ''
-      # tls_dns_names: []
+      tls_issuer_kind: Issuer
+      controller_service_port: "80"
+      controller_service_https: false
     ingress:
       type: none
-      # type: ingress
-      # ingress_class_name: nginx
-      # hosts:
-      #   - hostname: awx.example.com
     bootstrap:
       enabled: true
     # postgres_configuration_secret / redis_configuration_secret filled from

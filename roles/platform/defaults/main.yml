@@ -7,14 +7,14 @@ open_source_defaults: true
 controller:
   create: true
   name: ''
-  image: ''
-  image_version: ''
+  image: ghcr.io/ansible/awx
+  image_version: devel
 
 gateway:
   create: true
   name: ''
-  image: ghcr.io/ansible/jewel
-  image_version: latest
+  image: ghcr.io/flippyboy/awx/jewel-with-ui
+  image_version: "0.1.0"
   ui_mode: baked
   ui_image: ''
   # TLS (cert-manager) — passed through to AWXGateway
