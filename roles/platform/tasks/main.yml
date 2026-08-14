@@ -120,10 +120,9 @@
 
 - name: Set trust facts
   set_fact:
-    __gateway_service_secret: >-
-      {{ (__gateway_name ~ '-controller-service-secret')
-         if (platform_ctrl_secret.resources | default([]) | length > 0)
-         else '' }}
+    # Always wire the well-known secret name so installer remounts once the
+    # gateway role creates it (empty string left JWT trust permanently broken).
+    __gateway_service_secret: '{{ __gateway_name }}-controller-service-secret'
     __trust_established: '{{ (platform_ctrl_secret.resources | default([]) | length > 0) | bool }}'
 
 - name: Create child AWX (Controller) with gateway consumer + external Postgres
@@ -148,7 +147,7 @@
         service_type: ClusterIP
         # Platform mode: no public Controller ingress (Envoy is the edge)
         ingress_type: none
-        open_source_defaults: '{{ open_source_defaults | default(true) | bool }}'
+        open_source_defaults: {{ open_source_defaults | default(true) | bool | lower }}
         gateway_url: 'https://{{ __gateway_name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
         gateway_validate_certs: false
         gateway_service_secret_secret: '{{ __gateway_service_secret }}'

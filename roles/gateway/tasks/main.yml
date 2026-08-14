@@ -424,27 +424,105 @@
         namespace: '{{ ansible_operator_meta.namespace }}'
       register: ctrl_svc_secret_info
 
+    # Operator image has no kubectl — use kubernetes.core.k8s_exec + k8s modules.
     - name: Generate secret via jewel Django API (idempotent if Secret present)
       when: ctrl_svc_secret_info.resources | default([]) | length == 0
       block:
-        - name: Render generate-secret script
-          copy:
-            content: "{{ lookup('template', 'scripts/generate_controller_secret.sh.j2') }}"
-            dest: '/tmp/{{ ansible_operator_meta.name }}-gen-controller-secret.sh'
-            mode: '0755'
-        - name: Run generate-secret script
-          command: '/tmp/{{ ansible_operator_meta.name }}-gen-controller-secret.sh'
-          register: gen_svc_secret
-          changed_when: "'created' in gen_svc_secret.stdout"
+        - name: Find Jewel pod
+          k8s_info:
+            api_version: v1
+            kind: Pod
+            namespace: '{{ ansible_operator_meta.namespace }}'
+            label_selectors:
+              - 'app.kubernetes.io/name={{ ansible_operator_meta.name }}'
+          register: jewel_pods
+
+        - name: Fail when Jewel pod missing
+          fail:
+            msg: 'No Jewel pod found to generate controller service secret'
+          when: jewel_pods.resources | default([]) | length == 0
+
+        - name: Exec generate_key on controller ServiceAPIRoute
+          kubernetes.core.k8s_exec:
+            namespace: '{{ ansible_operator_meta.namespace }}'
+            pod: '{{ jewel_pods.resources[0].metadata.name }}'
+            container: jewel
+            command:
+              - python3
+              - -c
+              - |
+                import os, sys
+                os.environ.setdefault("DJANGO_SETTINGS_MODULE", "aap_gateway_api.settings")
+                import django
+                django.setup()
+                from aap_gateway_api.models import ServiceAPIRoute
+                route = ServiceAPIRoute.objects.filter(api_slug="controller").first()
+                if route is None:
+                    sys.stderr.write("no ServiceAPIRoute api_slug=controller\n")
+                    sys.exit(2)
+                key = route.service_cluster.generate_key()
+                # stdout must be only the secret (colorama/etc. go to stderr)
+                sys.stdout.write(key.secret)
+                sys.stdout.write("\n")
+          register: gen_key_exec
+
+        - name: Parse generated secret
+          set_fact:
+            __generated_controller_secret: '{{ gen_key_exec.stdout | default("") | trim }}'
+
+        - name: Fail if secret empty or polluted
+          fail:
+            msg: >-
+              Failed to generate controller service secret from Jewel:
+              stdout={{ gen_key_exec.stdout | default('') | truncate(200) }}
+              stderr={{ gen_key_exec.stderr | default('') | truncate(400) }}
+          when: >-
+            (__generated_controller_secret | default('') | length) < 20
+            or ('colorama' in (__generated_controller_secret | lower))
+            or ('traceback' in (__generated_controller_secret | lower))
+            or ('error' == (__generated_controller_secret | lower | truncate(5, True, '')))
+
+        - name: Create controller service secret
+          k8s:
+            state: present
+            definition:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: '{{ ansible_operator_meta.name }}-controller-service-secret'
+                namespace: '{{ ansible_operator_meta.namespace }}'
+                labels:
+                  app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
+                  app.kubernetes.io/managed-by: awx-operator
+                  app.kubernetes.io/component: gateway-trust
+              type: Opaque
+              stringData:
+                secret: '{{ __generated_controller_secret }}'
 
     - name: Record controller service secret name
       set_fact:
         __controller_service_secret: '{{ ansible_operator_meta.name }}-controller-service-secret'
 
-- name: Patch AWXGateway status via kubectl subresource
-  shell: |
-    kubectl -n '{{ ansible_operator_meta.namespace }}' patch awxgateway '{{ ansible_operator_meta.name }}' \
-      --type=merge --subresource=status \
-      -p '{"status":{"URL":"https://{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc:8000","controllerServiceSecret":"{{ ansible_operator_meta.name }}-controller-service-secret","tlsSecret":"{{ __tls_secret | default("") }}","tlsMode":"{{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}","tlsCAConfigMap":"{{ __tls_ca_configmap | default("") if (__use_tls_secret | default(false)) else "" }}","conditions":[{"type":"Ready","status":"True","reason":"Deployed","message":"Jewel gateway ready; controller service secret available; tls={{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}"}]}}'
+- name: Patch AWXGateway status
+  k8s:
+    state: present
+    definition:
+      apiVersion: '{{ api_version | default("awx.ansible.com/v1beta1") }}'
+      kind: AWXGateway
+      metadata:
+        name: '{{ ansible_operator_meta.name }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
+      status:
+        URL: 'https://{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
+        controllerServiceSecret: '{{ ansible_operator_meta.name }}-controller-service-secret'
+        tlsSecret: '{{ __tls_secret | default("") }}'
+        tlsMode: '{{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}'
+        tlsCAConfigMap: '{{ __tls_ca_configmap | default("") if (__use_tls_secret | default(false)) else "" }}'
+        conditions:
+          - type: Ready
+            status: "True"
+            reason: Deployed
+            message: >-
+              Jewel gateway ready; controller service secret available;
+              tls={{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}
   ignore_errors: true
-  changed_when: false
