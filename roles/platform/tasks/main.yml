@@ -95,7 +95,7 @@
         create_tls_issuer: {{ gateway.create_tls_issuer | default(true) | bool | lower }}
         tls_issuer: '{{ gateway.tls_issuer | default("") }}'
         tls_issuer_kind: '{{ gateway.tls_issuer_kind | default("Issuer") }}'
-        tls_dns_names: {{ gateway.tls_dns_names | default([]) | to_json }}
+        tls_dns_names: '{{ gateway.tls_dns_names | default([]) }}'
         admin_user: '{{ admin_user | default("admin") }}'
         admin_password_secret: '{{ __admin_password_secret }}'
         postgres_configuration_secret: '{{ __postgres_secret }}'
