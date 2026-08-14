@@ -91,8 +91,8 @@
         envoy_enabled: true
         # Shared Jewel+Envoy TLS via cert-manager (see gateway role)
         tls_secret: '{{ gateway.tls_secret | default("") }}'
-        create_certificate: {{ gateway.create_certificate | default(true) | bool | lower }}
-        create_tls_issuer: {{ gateway.create_tls_issuer | default(true) | bool | lower }}
+        create_certificate: '{{ gateway.create_certificate | default(true) | bool | lower }}'
+        create_tls_issuer: '{{ gateway.create_tls_issuer | default(true) | bool | lower }}'
         tls_issuer: '{{ gateway.tls_issuer | default("") }}'
         tls_issuer_kind: '{{ gateway.tls_issuer_kind | default("Issuer") }}'
         tls_dns_names: '{{ gateway.tls_dns_names | default([]) }}'
@@ -108,7 +108,7 @@
         # Service port is 80 (targetPort 8052) — see installer networking/service.yaml.j2
         controller_service: '{{ __controller_name }}-service'
         controller_service_port: '{{ gateway.controller_service_port | default("80") }}'
-        controller_service_https: {{ gateway.controller_service_https | default(false) | bool | lower }}
+        controller_service_https: '{{ gateway.controller_service_https | default(false) | bool | lower }}'
 
 - name: Detect controller service secret from gateway trust
   k8s_info:
@@ -147,7 +147,7 @@
         service_type: ClusterIP
         # Platform mode: no public Controller ingress (Envoy is the edge)
         ingress_type: none
-        open_source_defaults: {{ open_source_defaults | default(true) | bool | lower }}
+        open_source_defaults: '{{ open_source_defaults | default(true) | bool | lower }}'
         gateway_url: 'https://{{ __gateway_name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
         gateway_validate_certs: false
         gateway_service_secret_secret: '{{ __gateway_service_secret }}'
