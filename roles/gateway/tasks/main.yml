@@ -424,80 +424,59 @@
         namespace: '{{ ansible_operator_meta.namespace }}'
       register: ctrl_svc_secret_info
 
-    # Operator image has no kubectl — use kubernetes.core.k8s_exec + k8s modules.
-    - name: Generate secret via jewel Django API (idempotent if Secret present)
+    # No kubectl in operator image; k8s_exec against jewel is flaky (OCI exec).
+    # Use a Job with the Jewel image + in-cluster API to create the Secret.
+    - name: Generate secret via Job (idempotent if Secret present)
       when: ctrl_svc_secret_info.resources | default([]) | length == 0
       block:
-        - name: Find Jewel pod
-          k8s_info:
-            api_version: v1
-            kind: Pod
+        - name: Remove previous gen-secret Job if present
+          k8s:
+            state: absent
+            api_version: batch/v1
+            kind: Job
+            name: '{{ ansible_operator_meta.name }}-gen-ctrl-secret'
             namespace: '{{ ansible_operator_meta.namespace }}'
-            label_selectors:
-              - 'app.kubernetes.io/name={{ ansible_operator_meta.name }}'
-          register: jewel_pods
+          ignore_errors: true
 
-        - name: Fail when Jewel pod missing
-          fail:
-            msg: 'No Jewel pod found to generate controller service secret'
-          when: jewel_pods.resources | default([]) | length == 0
-
-        - name: Exec generate_key on controller ServiceAPIRoute
-          kubernetes.core.k8s_exec:
-            namespace: '{{ ansible_operator_meta.namespace }}'
-            pod: '{{ jewel_pods.resources[0].metadata.name }}'
-            container: jewel
-            command:
-              - python3
-              - -c
-              - |
-                import os, sys
-                os.environ.setdefault("DJANGO_SETTINGS_MODULE", "aap_gateway_api.settings")
-                import django
-                django.setup()
-                from aap_gateway_api.models import ServiceAPIRoute
-                route = ServiceAPIRoute.objects.filter(api_slug="controller").first()
-                if route is None:
-                    sys.stderr.write("no ServiceAPIRoute api_slug=controller\n")
-                    sys.exit(2)
-                key = route.service_cluster.generate_key()
-                # stdout must be only the secret (colorama/etc. go to stderr)
-                sys.stdout.write(key.secret)
-                sys.stdout.write("\n")
-          register: gen_key_exec
-
-        - name: Parse generated secret
-          set_fact:
-            __generated_controller_secret: '{{ gen_key_exec.stdout | default("") | trim }}'
-
-        - name: Fail if secret empty or polluted
-          fail:
-            msg: >-
-              Failed to generate controller service secret from Jewel:
-              stdout={{ gen_key_exec.stdout | default('') | truncate(200) }}
-              stderr={{ gen_key_exec.stderr | default('') | truncate(400) }}
-          when: >-
-            (__generated_controller_secret | default('') | length) < 20
-            or ('colorama' in (__generated_controller_secret | lower))
-            or ('traceback' in (__generated_controller_secret | lower))
-            or ('error' == (__generated_controller_secret | lower | truncate(5, True, '')))
-
-        - name: Create controller service secret
+        - name: Apply SA/Role/ConfigMap/Job for secret generation
           k8s:
             state: present
-            definition:
-              apiVersion: v1
-              kind: Secret
-              metadata:
-                name: '{{ ansible_operator_meta.name }}-controller-service-secret'
-                namespace: '{{ ansible_operator_meta.namespace }}'
-                labels:
-                  app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
-                  app.kubernetes.io/managed-by: awx-operator
-                  app.kubernetes.io/component: gateway-trust
-              type: Opaque
-              stringData:
-                secret: '{{ __generated_controller_secret }}'
+            definition: '{{ item }}'
+            apply: true
+          loop: "{{ lookup('template', 'jobs/generate_controller_secret.yaml.j2') | from_yaml_all | list }}"
+
+        - name: Wait for gen-secret Job
+          k8s_info:
+            api_version: batch/v1
+            kind: Job
+            name: '{{ ansible_operator_meta.name }}-gen-ctrl-secret'
+            namespace: '{{ ansible_operator_meta.namespace }}'
+          register: gen_secret_job
+          until: >-
+            gen_secret_job.resources | default([]) | length > 0 and (
+              (gen_secret_job.resources[0].status.succeeded | default(0) | int) >= 1
+              or (gen_secret_job.resources[0].status.failed | default(0) | int) >= 1
+            )
+          retries: 36
+          delay: 5
+
+        - name: Fail if gen-secret Job failed
+          fail:
+            msg: >-
+              Job {{ ansible_operator_meta.name }}-gen-ctrl-secret failed.
+              Check logs: kubectl -n {{ ansible_operator_meta.namespace }}
+              logs job/{{ ansible_operator_meta.name }}-gen-ctrl-secret
+          when: >-
+            (gen_secret_job.resources[0].status.succeeded | default(0) | int) < 1
+
+        - name: Confirm controller service secret exists
+          k8s_info:
+            api_version: v1
+            kind: Secret
+            name: '{{ ansible_operator_meta.name }}-controller-service-secret'
+            namespace: '{{ ansible_operator_meta.namespace }}'
+          register: ctrl_svc_secret_after
+          failed_when: ctrl_svc_secret_after.resources | default([]) | length == 0
 
     - name: Record controller service secret name
       set_fact:
