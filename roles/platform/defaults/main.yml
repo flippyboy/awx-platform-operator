@@ -14,7 +14,7 @@ gateway:
   create: true
   name: ''
   image: ghcr.io/flippyboy/awx/jewel-with-ui
-  image_version: "0.1.0"
+  image_version: "0.1.1"
   ui_mode: baked
   ui_image: ''
   # TLS (cert-manager) — passed through to AWXGateway

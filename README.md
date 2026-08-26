@@ -34,7 +34,7 @@ The Helm chart is a **separate** GHCR package from the operator container image 
 ```bash
 # From OCI (after a release tag)
 helm upgrade --install awx-platform oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm \
-  --version 0.1.0 -n awx-platform --create-namespace \
+  --version 0.1.10 -n awx-platform --create-namespace \
   -f charts/awx-platform-operator/examples/platform-kind.yaml
 
 # Or from a local chart checkout

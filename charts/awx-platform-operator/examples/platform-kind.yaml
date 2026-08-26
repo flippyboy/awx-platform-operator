@@ -5,7 +5,7 @@
 
 operator:
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "0.1.9"
+  tag: "0.1.10"
   imagePullPolicy: IfNotPresent
   ansibleDebugLogs: "true"
 
@@ -42,7 +42,7 @@ AWXPlatform:
       create: true
       name: demo-gateway
       image: ghcr.io/flippyboy/awx/jewel-with-ui
-      image_version: "0.1.0"
+      image_version: "0.1.1"
       ui_mode: baked
       # Shared Jewel+Envoy TLS via cert-manager
       create_certificate: true
@@ -70,7 +70,7 @@ AWXGateway:
   name: demo-gateway
   spec:
     image: ghcr.io/flippyboy/awx/jewel-with-ui
-    image_version: "0.1.0"
+    image_version: "0.1.1"
     ui_mode: baked
     envoy_enabled: true
     create_certificate: true
