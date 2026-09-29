@@ -6,9 +6,9 @@ description: >-
   (Controller + Jewel gateway + Envoy + AWXPlatform/AWXGateway CRs).
 type: application
 # Chart version for this monorepo fork
-version: 0.1.10
+version: 0.1.11
 # Operator image tag / app version (local build or published fork)
-appVersion: "0.1.10"
+appVersion: "0.1.11"
 home: https://github.com/ansible/awx-operator
 keywords:
   - awx
@@ -21,9 +21,9 @@ sources:
   - https://github.com/ansible/awx-operator
 annotations:
   artifacthub.io/changes: |
-    - kind: added
-      description: AWXGateway and AWXPlatform CRDs and Helm resources
-    - kind: added
-      description: External Postgres/Redis secrets for platform mode
+    - kind: security
+      description: Gateway database, admin, and Redis credentials are referenced from Secrets
+    - kind: security
+      description: Envoy no longer runs as root and its admin port is not a Service
     - kind: changed
-      description: Forked for monorepo platform operator
+      description: Dependabot updates the operator image, GitHub Actions, and Python dependencies
