@@ -1,9 +1,53 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  # Actions used by .github/workflows.
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 3
+      interval: weekly
+    open-pull-requests-limit: 5
     labels:
-      - "dependencies"
+      - dependencies
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Operator runtime image (quay.io/operator-framework/ansible-operator).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  # Docs site, pip-compile from docs/requirements.in.
+  - package-ecosystem: pip
+    directory: /docs
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      docs-python:
+        patterns:
+          - "*"
+
+  # Molecule / ansible-lint toolchain.
+  - package-ecosystem: pip
+    directory: /molecule
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      molecule-python:
+        patterns:
+          - "*"
+
+# Ansible collections in requirements.yml are not a Dependabot ecosystem.
+# kubernetes.core and operator_sdk.util stay pinned there and are installed
+# by the operator image build.

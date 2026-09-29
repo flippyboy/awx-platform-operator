@@ -31,6 +31,7 @@
 - name: Load or generate admin password secret
   block:
     - name: Check admin password secret
+      no_log: "{{ no_log }}"
       k8s_info:
         api_version: v1
         kind: Secret
@@ -39,23 +40,34 @@
       register: admin_secret_info
 
     - name: Set admin password from existing secret
+      no_log: "{{ no_log }}"
       set_fact:
         __admin_password: "{{ admin_secret_info.resources[0].data.password | b64decode }}"
       when: admin_secret_info.resources | default([]) | length > 0
 
     - name: Generate admin password
+      no_log: "{{ no_log }}"
       set_fact:
         __admin_password: "{{ lookup('password', '/dev/null length=24 chars=ascii_letters,digits') }}"
       when: admin_secret_info.resources | default([]) | length == 0
 
     - name: Apply admin password secret
+      no_log: "{{ no_log }}"
       k8s:
         state: present
         definition: "{{ lookup('template', 'secrets/admin_password.yaml.j2') | from_yaml }}"
 
+    - name: Apply gateway startup Secret
+      no_log: "{{ no_log }}"
+      k8s:
+        state: present
+        apply: true
+        definition: "{{ lookup('template', 'secrets/container_startup.yaml.j2') | from_yaml }}"
+
 - name: Load or generate Django secret key
   block:
     - name: Check secret key secret
+      no_log: "{{ no_log }}"
       k8s_info:
         api_version: v1
         kind: Secret
@@ -64,16 +76,19 @@
       register: sk_info
 
     - name: Set secret key from existing
+      no_log: "{{ no_log }}"
       set_fact:
         __secret_key: "{{ sk_info.resources[0].data.SECRET_KEY | b64decode }}"
       when: sk_info.resources | default([]) | length > 0
 
     - name: Generate secret key
+      no_log: "{{ no_log }}"
       set_fact:
         __secret_key: "{{ lookup('password', '/dev/null length=50 chars=ascii_letters,digits') }}"
       when: sk_info.resources | default([]) | length == 0
 
     - name: Apply secret key secret
+      no_log: "{{ no_log }}"
       k8s:
         state: present
         definition: "{{ lookup('template', 'secrets/secret_key.yaml.j2') | from_yaml }}"
@@ -84,10 +99,13 @@
       fail:
         msg: >-
           AWXGateway requires postgres_configuration_secret with keys
-          host, port, database, username, password (same shape as AWX postgres secret).
+          host, port, username, password (same shape as AWX postgres secret).
+          database is optional and is only the database to connect to when
+          creating the gateway database.
       when: postgres_configuration_secret | default('') | length == 0
 
     - name: Read postgres configuration secret
+      no_log: "{{ no_log }}"
       k8s_info:
         api_version: v1
         kind: Secret
@@ -95,13 +113,22 @@
         namespace: '{{ ansible_operator_meta.namespace }}'
       register: pg_secret
 
-    - name: Parse postgres secret
+    - name: Fail when postgres secret is missing required keys
+      no_log: "{{ no_log }}"
+      fail:
+        msg: >-
+          AWXGateway postgres_configuration_secret must exist and contain
+          host, port, username, and password.
+      when: >-
+        pg_secret.resources | default([]) | length == 0
+        or 'host' not in (pg_secret.resources[0].data | default({}))
+        or 'port' not in (pg_secret.resources[0].data | default({}))
+        or 'username' not in (pg_secret.resources[0].data | default({}))
+        or 'password' not in (pg_secret.resources[0].data | default({}))
+
+    - name: Record postgres host for init-db annotation
       set_fact:
         __pg_host: "{{ pg_secret.resources[0].data.host | b64decode }}"
-        __pg_port: "{{ pg_secret.resources[0].data.port | default('NTQzMg==') | b64decode }}"
-        __pg_username: "{{ pg_secret.resources[0].data.username | b64decode }}"
-        __pg_password: "{{ pg_secret.resources[0].data.password | b64decode }}"
-        __pg_connect_database: "{{ (pg_secret.resources[0].data.database | default('') | b64decode) if (pg_secret.resources[0].data.database is defined) else 'postgres' }}"
 
 - name: Ensure gateway database exists
   k8s:
@@ -133,6 +160,7 @@
   block:
     - name: Read redis configuration secret
       when: redis_configuration_secret | default('') | length > 0
+      no_log: "{{ no_log }}"
       k8s_info:
         api_version: v1
         kind: Secret
@@ -140,47 +168,103 @@
         namespace: '{{ ansible_operator_meta.namespace }}'
       register: redis_secret_info
 
-    - name: Set Redis URL from secret
+    - name: Use Redis URL stored in redis_configuration_secret
       when:
         - redis_configuration_secret | default('') | length > 0
         - redis_secret_info.resources | default([]) | length > 0
+        - redis_secret_info.resources[0].data.url is defined
+      no_log: "{{ no_log }}"
+      set_fact:
+        __redis_secret_name: '{{ redis_configuration_secret }}'
+        __redis_secret_key: url
+        __redis_managed: false
+        __redis_hosts: >-
+          {{
+            (redis_secret_info.resources[0].data.url | b64decode | urlsplit('hostname'))
+            ~ ':'
+            ~ ((redis_secret_info.resources[0].data.url | b64decode | urlsplit('port')) | default(6379, true) | string)
+          }}
+
+    - name: Set Redis URL from secret host and port
+      when:
+        - redis_configuration_secret | default('') | length > 0
+        - redis_secret_info.resources | default([]) | length > 0
+        - __redis_secret_name is not defined
+        - redis_secret_info.resources[0].data.host is defined
+      no_log: "{{ no_log }}"
       set_fact:
         __redis_url: >-
           {{
-            (redis_secret_info.resources[0].data.url | b64decode)
-            if (redis_secret_info.resources[0].data.url is defined)
-            else (
-              'redis://'
-              ~ (redis_secret_info.resources[0].data.host | b64decode)
-              ~ ':'
-              ~ (redis_secret_info.resources[0].data.port | default('NjM3OQ==') | b64decode)
-              ~ '/0'
-            )
+            'redis://'
+            ~ (redis_secret_info.resources[0].data.host | b64decode)
+            ~ ':'
+            ~ (redis_secret_info.resources[0].data.port | default('NjM3OQ==') | b64decode)
+            ~ '/0'
+          }}
+        __redis_hosts: >-
+          {{
+            (redis_secret_info.resources[0].data.host | b64decode)
+            ~ ':'
+            ~ (redis_secret_info.resources[0].data.port | default('NjM3OQ==') | b64decode)
           }}
         __redis_managed: false
 
-    - name: Set Redis URL from redis_url field
+    - name: Note spec redis_url for credential check
       when:
         - redis_url | default('') | length > 0
         - __redis_url is not defined
+        - __redis_secret_name is not defined
+      no_log: "{{ no_log }}"
       set_fact:
-        __redis_url: '{{ redis_url }}'
-        __redis_managed: false
-
-    - name: Default to managed Redis Service
-      when: __redis_url is not defined
-      set_fact:
-        __redis_url: 'redis://{{ ansible_operator_meta.name }}-redis:6379/0'
-        __redis_managed: '{{ redis_managed | default(true) | bool }}'
-
-    - name: Derive REDIS_HOSTS host:port from URL
-      set_fact:
+        __redis_url_from_spec: '{{ redis_url }}'
         __redis_hosts: >-
           {{
-            (__redis_url | urlsplit('hostname'))
+            (redis_url | urlsplit('hostname'))
             ~ ':'
-            ~ ((__redis_url | urlsplit('port')) | default(6379, true) | string)
+            ~ ((redis_url | urlsplit('port')) | default(6379, true) | string)
           }}
+        __redis_url_has_creds: >-
+          {{
+            (
+              (redis_url | urlsplit('username') | default('', true) | length > 0)
+              or (redis_url | urlsplit('password') | default('', true) | length > 0)
+            ) | bool
+          }}
+        __redis_managed: false
+
+    - name: Store credentialed spec Redis URL in a Secret
+      when:
+        - __redis_url_from_spec is defined
+        - __redis_url_has_creds | bool
+      no_log: "{{ no_log }}"
+      k8s:
+        state: present
+        apply: true
+        definition: "{{ lookup('template', 'secrets/redis_url.yaml.j2') | from_yaml }}"
+
+    - name: Reference operator Redis URL secret
+      when:
+        - __redis_url_from_spec is defined
+        - __redis_url_has_creds | bool
+      set_fact:
+        __redis_secret_name: '{{ ansible_operator_meta.name }}-redis-url'
+        __redis_secret_key: url
+
+    - name: Use spec Redis URL with no credentials
+      when:
+        - __redis_url_from_spec is defined
+        - not (__redis_url_has_creds | bool)
+      set_fact:
+        __redis_url: '{{ __redis_url_from_spec }}'
+
+    - name: Default to managed Redis Service
+      when:
+        - __redis_url is not defined
+        - __redis_secret_name is not defined
+      set_fact:
+        __redis_url: 'redis://{{ ansible_operator_meta.name }}-redis:6379/0'
+        __redis_hosts: '{{ ansible_operator_meta.name }}-redis:6379'
+        __redis_managed: '{{ redis_managed | default(true) | bool }}'
 
 - name: Apply settings ConfigMap
   k8s:

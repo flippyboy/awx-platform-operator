@@ -18,8 +18,9 @@ data:
     FRONT_END_URL = {{ (front_end_url | default('https://localhost')) | tojson }}
     ENVOY_VERIFY_HTTPS_CERTIFICATES = False
     import os
-    _redis_url = os.environ.get('REDIS_URL', {{ (__redis_url | default('redis://' ~ ansible_operator_meta.name ~ '-redis:6379/0')) | tojson }})
-    _redis_hosts = os.environ.get('REDIS_HOSTS', {{ (__redis_hosts | default(ansible_operator_meta.name ~ '-redis:6379')) | tojson }})
+    # REDIS_URL is injected from a Secret or a non-credential literal. Do not embed it here.
+    _redis_url = os.environ['REDIS_URL']
+    _redis_hosts = os.environ.get('REDIS_HOSTS', {{ (ansible_operator_meta.name ~ '-redis:6379') | tojson }})
     CACHES = {
         'default': {
             'BACKEND': 'ansible_base.lib.cache.redis_cache.DABRedisCache',
@@ -56,7 +57,3 @@ data:
             'LOCATION': '/var/tmp/django_cache',
         },
     }
-  container-startup.yml: |
-    gateway_admin_username: {{ admin_user | default('admin') }}
-    gateway_admin_password: {{ __admin_password }}
-    gateway_node_count: 1

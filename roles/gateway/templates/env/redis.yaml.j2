@@ -1,0 +1,11 @@
+- name: REDIS_URL
+{% if __redis_secret_name | default('') | length > 0 %}
+  valueFrom:
+    secretKeyRef:
+      name: '{{ __redis_secret_name }}'
+      key: '{{ __redis_secret_key | default("url") }}'
+{% else %}
+  value: '{{ __redis_url | default("redis://" ~ ansible_operator_meta.name ~ "-redis:6379/0") }}'
+{% endif %}
+- name: REDIS_HOSTS
+  value: '{{ __redis_hosts | default(ansible_operator_meta.name ~ "-redis:6379") }}'

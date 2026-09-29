@@ -87,9 +87,10 @@ spec:
         - name: envoy
           image: mirror.gcr.io/envoyproxy/envoy:v1.36.6
           args: ["--config-path", "/etc/envoy/envoy.yaml"]
-          env:
-            - name: ENVOY_UID
-              value: "0"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: https
               containerPort: 9080
@@ -139,6 +140,3 @@ spec:
     - name: https
       port: 9080
       targetPort: 9080
-    - name: admin
-      port: 19000
-      targetPort: 19000

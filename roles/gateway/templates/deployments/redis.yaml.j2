@@ -21,6 +21,7 @@ spec:
         app.kubernetes.io/component: gateway-redis
         app.kubernetes.io/managed-by: awx-operator
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: redis
           image: '{{ redis_image }}:{{ redis_image_version }}'

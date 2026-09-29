@@ -2,6 +2,8 @@
 # Defaults for AWXPlatform umbrella role
 admin_user: admin
 admin_password_secret: ''
+# Hide Secret material in operator logs. Set false on the CR to debug.
+no_log: true
 open_source_defaults: true
 
 controller:

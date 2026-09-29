@@ -50,7 +50,13 @@ data:
             "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
             common_tls_context:
               validation_context:
+{% if (__create_certificate | default(true) | bool) and (__use_tls_secret | default(false)) and (__tls_ca_pem | default('') | length > 0) %}
+                trusted_ca:
+                  inline_string: |
+{{ __tls_ca_pem | indent(20, true) }}
+{% else %}
                 trust_chain_verification: ACCEPT_UNTRUSTED
+{% endif %}
       - name: gateway_control_plane
         type: STRICT_DNS
         connect_timeout: 5s
@@ -99,6 +105,7 @@ spec:
         checksum/tls-secret: '{{ __tls_secret }}'
 {% endif %}
     spec:
+      automountServiceAccountToken: false
       # Jewel LDS advertises cert paths under /etc/ansible-automation-platform/gateway/
       # (gateway.crt / gateway.key). Envoy must have real PEM material there.
 {% if not (__use_tls_secret | default(false)) %}
@@ -127,9 +134,10 @@ spec:
           image: '{{ envoy_image }}:{{ envoy_image_version }}'
           imagePullPolicy: '{{ image_pull_policy | default("IfNotPresent") }}'
           args: ["--config-path", "/etc/envoy/envoy.yaml"]
-          env:
-            - name: ENVOY_UID
-              value: "0"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: https
               containerPort: 9080
@@ -195,6 +203,3 @@ spec:
     - name: https
       port: 9080
       targetPort: 9080
-    - name: admin
-      port: 19000
-      targetPort: 19000

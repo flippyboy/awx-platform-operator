@@ -21,7 +21,11 @@ data:
     ctrl_https = os.environ.get("CONTROLLER_HTTPS", "false").lower() in ("1", "true", "yes")
     gw_addr = os.environ.get("GATEWAY_ADDRESS", "localhost")
 
-    ctx = ssl._create_unverified_context()
+    cafile = os.environ.get("SSL_CA_FILE", "")
+    if cafile:
+        ctx = ssl.create_default_context(cafile=cafile)
+    else:
+        ctx = ssl._create_unverified_context()
     auth = base64.b64encode(f"{user}:{pw}".encode()).decode()
 
     def http(method, url, data=None):
@@ -140,6 +144,7 @@ spec:
   backoffLimit: 5
   template:
     spec:
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       containers:
         - name: register
@@ -150,7 +155,10 @@ spec:
             - name: ADMIN_USER
               value: '{{ admin_user | default("admin") }}'
             - name: ADMIN_PASS
-              value: '{{ __admin_password }}'
+              valueFrom:
+                secretKeyRef:
+                  name: '{{ __admin_password_secret }}'
+                  key: password
             - name: GATEWAY_ADDRESS
               value: '{{ ansible_operator_meta.name }}'
             - name: CONTROLLER_SVC
@@ -159,12 +167,29 @@ spec:
               value: '{{ controller_service_port | default("80") | string }}'
             - name: CONTROLLER_HTTPS
               value: '{{ controller_service_https | default(false) | string | lower }}'
+{% if (__create_certificate | default(true) | bool) and (__use_tls_secret | default(false)) and (create_tls_ca_configmap | default(true) | bool) %}
+            - name: SSL_CA_FILE
+              value: /etc/ssl/gateway/ca.crt
+{% endif %}
           command: ["python3", "/scripts/register.py"]
           volumeMounts:
             - name: script
               mountPath: /scripts
+{% if (__create_certificate | default(true) | bool) and (__use_tls_secret | default(false)) and (create_tls_ca_configmap | default(true) | bool) %}
+            - name: gateway-ca
+              mountPath: /etc/ssl/gateway
+              readOnly: true
+{% endif %}
       volumes:
         - name: script
           configMap:
             name: '{{ ansible_operator_meta.name }}-trust-script'
             defaultMode: 0555
+{% if (__create_certificate | default(true) | bool) and (__use_tls_secret | default(false)) and (create_tls_ca_configmap | default(true) | bool) %}
+        - name: gateway-ca
+          configMap:
+            name: '{{ __tls_ca_configmap }}'
+            items:
+              - key: ca.crt
+                path: ca.crt
+{% endif %}

@@ -23,10 +23,20 @@ spec:
       annotations:
         # Roll pods when TLS secret material changes
         awx.ansible.com/tls-mode: '{{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}'
+        # Hashes, not secret values. secretKeyRef does not roll pods on its own.
+        checksum/postgres-configuration: "{{ pg_secret.resources[0].data | to_json | hash('sha1') }}"
+        checksum/admin-password: "{{ __admin_password | hash('sha1') }}"
+        checksum/secret-key: "{{ __secret_key | hash('sha1') }}"
+{% if __redis_url_from_spec is defined %}
+        checksum/redis-configuration: "{{ __redis_url_from_spec | hash('sha1') }}"
+{% elif redis_secret_info is defined and (redis_secret_info.resources | default([])) | length > 0 %}
+        checksum/redis-configuration: "{{ redis_secret_info.resources[0].data | to_json | hash('sha1') }}"
+{% endif %}
 {% if __use_tls_secret | default(false) %}
         checksum/tls-secret: '{{ __tls_secret }}'
 {% endif %}
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
 {% if image_pull_secrets | default([]) | length %}
@@ -64,24 +74,15 @@ spec:
           env:
             - name: DJANGO_SETTINGS_MODULE
               value: aap_gateway_api.settings
+            # Gateway database created by the init Job, not the secret's database key.
             - name: DATABASE_NAME
               value: '{{ database_name | default("gateway") }}'
-            - name: DATABASE_USER
-              value: '{{ __pg_username }}'
-            - name: DATABASE_PASSWORD
-              value: '{{ __pg_password }}'
-            - name: DATABASE_HOST
-              value: '{{ __pg_host }}'
-            - name: DATABASE_PORT
-              value: '{{ __pg_port | string }}'
-            - name: REDIS_URL
-              value: '{{ __redis_url | default("redis://" ~ ansible_operator_meta.name ~ "-redis:6379/0") }}'
+{{ lookup('template', 'env/database_secret.yaml.j2') | indent(12, true) ~ '\n' }}
+{{ lookup('template', 'env/redis.yaml.j2') | indent(12, true) ~ '\n' }}
             - name: REDIS_TLS
               value: "false"
             - name: REDIS_MODE
               value: standalone
-            - name: REDIS_HOSTS
-              value: '{{ __redis_hosts | default(ansible_operator_meta.name ~ "-redis:6379") }}'
             - name: REDIS_SSL_CERT_REQS
               value: none
             - name: CACHE_KEY_PREFIX
@@ -119,9 +120,10 @@ spec:
             - name: settings
               mountPath: /etc/ansible-automation-platform/gateway/settings.py
               subPath: settings.py
-            - name: settings
+            - name: startup
               mountPath: /opt/aap_gateway/src/container-startup.yml
               subPath: container-startup.yml
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /api/
@@ -156,6 +158,13 @@ spec:
         - name: settings
           configMap:
             name: '{{ ansible_operator_meta.name }}-settings'
+        - name: startup
+          secret:
+            secretName: '{{ ansible_operator_meta.name }}-startup'
+            items:
+              - key: container-startup.yml
+                path: container-startup.yml
+            defaultMode: 0440
 ---
 apiVersion: v1
 kind: Service

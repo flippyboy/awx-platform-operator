@@ -38,6 +38,7 @@
 - name: Ensure shared admin password secret
   block:
     - name: Check admin secret
+      no_log: "{{ no_log | default(true) }}"
       k8s_info:
         api_version: v1
         kind: Secret
@@ -47,6 +48,7 @@
 
     - name: Create admin secret if missing
       when: plat_admin.resources | default([]) | length == 0
+      no_log: "{{ no_log | default(true) }}"
       k8s:
         state: present
         definition:
