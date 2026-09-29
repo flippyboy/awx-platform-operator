@@ -17,7 +17,7 @@
 operator:
   # Override fully via operator-controller merge (see templates)
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "0.1.11"
+  tag: "0.1.12"
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
   # kube-rbac-proxy sidecar
@@ -119,7 +119,7 @@ AWXGateway:
   # Spec fields map 1:1 to AWXGateway CR
   spec:
     image: ghcr.io/flippyboy/awx/jewel-with-ui
-    image_version: "0.1.1"
+    image_version: "0.1.2"
     image_pull_policy: IfNotPresent
     ui_mode: baked
     envoy_enabled: true
@@ -163,7 +163,7 @@ AWXPlatform:
     gateway:
       create: true
       image: ghcr.io/flippyboy/awx/jewel-with-ui
-      image_version: "0.1.1"
+      image_version: "0.1.2"
       ui_mode: baked
       create_certificate: true
       create_tls_issuer: true

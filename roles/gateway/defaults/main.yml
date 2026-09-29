@@ -2,7 +2,7 @@
 # Defaults for AWXGateway role (Jewel + optional Envoy)
 
 image: ghcr.io/flippyboy/awx/jewel-with-ui
-image_version: "0.1.1"
+image_version: "0.1.2"
 image_pull_policy: IfNotPresent
 image_pull_secrets: []
 

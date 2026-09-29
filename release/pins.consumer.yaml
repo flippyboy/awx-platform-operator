@@ -8,27 +8,27 @@
 # schema_version: 1
 
 schema_version: 1
-updated: "2026-09-29T00:00:00Z"
+updated: "2026-09-29T15:00:00Z"
 source_repo: awx-platform-images
 # Optional pointers to the images-repo git tags last consumed (per component)
 source_releases:
-  platform-ui: "platform-ui-v0.1.1"
-  jewel-with-ui: "jewel-with-ui-v0.1.1"
+  platform-ui: "platform-ui-v0.1.2"
+  jewel-with-ui: "jewel-with-ui-v0.1.2"
   awx: ""
 
 images:
   awx-operator:
     repository: ghcr.io/flippyboy/awx/awx-platform-operator
-    tag: "0.1.11"
+    tag: "0.1.12"
     digest: ""
   jewel-with-ui:
     repository: ghcr.io/flippyboy/awx/jewel-with-ui
-    tag: "0.1.1"
-    digest: "sha256:3a308b8aa32f940bb67f3f8b22d770796c16514467a9715c6595c81c81237667"
+    tag: "0.1.2"
+    digest: "sha256:9bc097e0847ee51dd837dba70ed9243a32865ca5d9997d92d661687befb4b8c7"
   platform-ui:
     repository: ghcr.io/flippyboy/awx/platform-ui
-    tag: "0.1.1"
-    digest: "sha256:af3bff71c6bcb8bdcbcae3e114d7d12fa5432334946b691748dc5ade763bb44d"
+    tag: "0.1.2"
+    digest: "sha256:e56b8427c0e82669a63ecd8d30faa32fec918c64903303793cee6d931e059a53"
   awx:
     repository: ghcr.io/ansible/awx   # or ghcr.io/flippyboy/awx/awx if rebuilt
     tag: devel
