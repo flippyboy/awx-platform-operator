@@ -83,6 +83,13 @@ spec:
       labels:
         app: envoy
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: envoy
           image: mirror.gcr.io/envoyproxy/envoy:v1.36.6
@@ -91,6 +98,9 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
           ports:
             - name: https
               containerPort: 9080

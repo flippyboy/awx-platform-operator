@@ -22,10 +22,25 @@ spec:
         app.kubernetes.io/managed-by: awx-operator
     spec:
       automountServiceAccountToken: false
+      # uid 999 is the image's redis user. The entrypoint skips gosu when
+      # it is already that user. Port 6379 does not need extra capabilities.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: '{{ redis_image }}:{{ redis_image_version }}'
           imagePullPolicy: '{{ image_pull_policy | default("IfNotPresent") }}'
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
           args:
             - redis-server
             - --bind

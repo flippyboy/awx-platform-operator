@@ -92,16 +92,25 @@ spec:
         app: jewel
     spec:
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: gen-tls
-          image: mirror.gcr.io/library/alpine:3.20
+          image: mirror.gcr.io/envoyproxy/envoy:v1.36.6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1000
           command:
             - /bin/sh
             - -c
             - |
               set -e
-              apk add --no-cache openssl >/dev/null
               if [ ! -s /tls/tls.crt ]; then
                 openssl req -nodes -newkey rsa:2048 -keyout /tls/tls.key -out /tmp/csr \
                   -subj "/CN=jewel" 2>/dev/null
@@ -118,6 +127,10 @@ spec:
           image: awx-compose/jewel:local
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
             runAsUser: 1000
           env:
             - name: DJANGO_SETTINGS_MODULE

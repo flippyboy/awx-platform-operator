@@ -22,8 +22,6 @@ sources:
 annotations:
   artifacthub.io/changes: |
     - kind: security
-      description: Gateway database, admin, and Redis credentials are referenced from Secrets
-    - kind: security
-      description: Envoy no longer runs as root and its admin port is not a Service
+      description: Gateway Envoy, Jewel, Redis, and Jobs run as non-root with a restricted Pod Security context
     - kind: changed
-      description: Dependabot updates the operator image, GitHub Actions, and Python dependencies
+      description: Default jewel-with-ui and platform-ui images are 0.1.2

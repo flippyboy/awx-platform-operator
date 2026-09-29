@@ -146,9 +146,24 @@ spec:
     spec:
       automountServiceAccountToken: false
       restartPolicy: OnFailure
+      # python:3.12-slim has no fixed app user. nobody can read the
+      # mode-0555 script ConfigMap and does not need to write.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: register
           image: '{{ register_image | default("mirror.gcr.io/library/python:3.12-slim") }}'
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
           env:
             - name: JEWEL_URL
               value: 'https://{{ ansible_operator_meta.name }}.{{ ansible_operator_meta.namespace }}.svc:8000'
