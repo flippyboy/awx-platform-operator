@@ -19,6 +19,8 @@
     __redis_secret: '{{ redis_configuration_secret | default("") }}'
     __ingress_type: '{{ ingress.type | default("none") | lower }}'
 
+# Helm owns this object. Do not set app.kubernetes.io/managed-by; the chart
+# value is Helm, and writing awx-operator here is the Argo diff.
 - name: Label AWXPlatform
   k8s:
     state: present
@@ -29,7 +31,6 @@
         name: '{{ ansible_operator_meta.name }}'
         namespace: '{{ ansible_operator_meta.namespace }}'
         labels:
-          app.kubernetes.io/managed-by: awx-operator
           app.kubernetes.io/component: platform
           app.kubernetes.io/name: '{{ ansible_operator_meta.name }}'
   when: set_self_labels | default(true) | bool

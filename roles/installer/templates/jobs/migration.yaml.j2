@@ -13,11 +13,20 @@ spec:
         {{ lookup("template", "../common/templates/labels/common.yaml.j2")  | indent(width=8) | trim }}
         {{ lookup("template", "../common/templates/labels/version.yaml.j2") | indent(width=8) | trim }}
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+{% if security_context_settings|length %}
+        {{ security_context_settings | to_nice_yaml | indent(8) }}
+{% endif %}
 {% if bundle_ca_crt %}
       initContainers:
         - name: init-bundle-ca-trust
           image: '{{ _init_container_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
@@ -36,6 +45,8 @@ spec:
       containers:
         - name: "migration-job"
           image: '{{ _image }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ task_resource_requirements }}
           command:
             - awx-manage

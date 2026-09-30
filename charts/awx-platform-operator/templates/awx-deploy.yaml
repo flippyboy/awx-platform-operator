@@ -20,14 +20,6 @@ spec:
 {{- include "spec.secrets" $ }}
 {{- /* Include raw map from the values file spec */}}
 {{ .spec | toYaml | indent 2 }}
-{{- /* Provide security context defaults */}}
-  {{- if not (hasKey .spec "security_context_settings") }}
-  security_context_settings:
-    runAsGroup: 0
-    runAsUser: 0
-    fsGroup: 0
-    fsGroupChangePolicy: OnRootMismatch
-  {{- end }}
 {{- /* Postgres: prefer shared externalPostgres, then AWX.postgres block */}}
   {{- if not (hasKey .spec "postgres_configuration_secret") }}
   {{- if $.Values.externalPostgres.enabled }}

@@ -8,7 +8,7 @@
 # schema_version: 1
 
 schema_version: 1
-updated: "2026-09-29T15:00:00Z"
+updated: "2026-09-30T12:00:00Z"
 source_repo: awx-platform-images
 # Optional pointers to the images-repo git tags last consumed (per component)
 source_releases:
@@ -19,7 +19,7 @@ source_releases:
 images:
   awx-operator:
     repository: ghcr.io/flippyboy/awx/awx-platform-operator
-    tag: "0.1.12"
+    tag: "0.1.13"
     digest: ""
   jewel-with-ui:
     repository: ghcr.io/flippyboy/awx/jewel-with-ui

@@ -97,6 +97,8 @@ spec:
       {{- end }}
       securityContext:
         runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: awx-operator-controller-manager
       terminationGracePeriodSeconds: 10
 {{- end -}}

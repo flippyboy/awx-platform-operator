@@ -6,9 +6,9 @@ description: >-
   (Controller + Jewel gateway + Envoy + AWXPlatform/AWXGateway CRs).
 type: application
 # Chart version for this monorepo fork
-version: 0.1.12
+version: 0.1.13
 # Operator image tag / app version (local build or published fork)
-appVersion: "0.1.12"
+appVersion: "0.1.13"
 home: https://github.com/ansible/awx-operator
 keywords:
   - awx
@@ -22,6 +22,6 @@ sources:
 annotations:
   artifacthub.io/changes: |
     - kind: security
-      description: Gateway Envoy, Jewel, Redis, and Jobs run as non-root with a restricted Pod Security context
+      description: Controller web, task, migration, and the operator manager satisfy the restricted Pod Security profile
     - kind: changed
-      description: Default jewel-with-ui and platform-ui images are 0.1.2
+      description: AWXPlatform keeps the Helm managed-by label, and the classic AWX chart no longer injects runAsUser 0

@@ -1,0 +1,12 @@
+# docker.io/redis USER is root. uid/gid 999 is the image's redis user, so the
+# entrypoint skips gosu. The controller socket is mode 777.
+allowPrivilegeEscalation: false
+capabilities:
+  drop:
+    - ALL
+{% if redis_capabilities is defined and redis_capabilities %}
+  add: {{ redis_capabilities }}
+{% endif %}
+runAsNonRoot: true
+runAsUser: 999
+runAsGroup: 999

@@ -81,6 +81,8 @@ spec:
         - name: init-bundle-ca-trust
           image: '{{ _init_container_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
@@ -99,6 +101,8 @@ spec:
         - name: init-database
           image: '{{ _image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
@@ -129,6 +133,8 @@ spec:
         - name: init-receptor
           image: '{{ _init_container_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
@@ -179,13 +185,18 @@ spec:
         - name: init-projects
           image: '{{ _init_projects_container_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
+            runAsUser: 1000
+            runAsGroup: 1000
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
             - -c
             - |
-              chmod 775 /var/lib/awx/projects
-              chgrp 1000 /var/lib/awx/projects
+              chmod 775 /var/lib/awx/projects || true
+              chgrp 1000 /var/lib/awx/projects || true
+              test -w /var/lib/awx/projects
           env:
             - name: MY_POD_NAME
               valueFrom:
@@ -199,11 +210,8 @@ spec:
         - image: '{{ _redis_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
           name: redis
-{% if redis_capabilities is defined and redis_capabilities %}
           securityContext:
-            capabilities:
-              add: {{ redis_capabilities }}
-{% endif %}
+{{ lookup("template", "common/security/redis_container.yaml.j2") | indent(12, true) }}
           args: ["redis-server", "/etc/redis.conf"]
           volumeMounts:
             - name: {{ ansible_operator_meta.name }}-redis-config
@@ -238,6 +246,9 @@ spec:
 {% if task_privileged == true %}
           securityContext:
             privileged: true
+{% else %}
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
 {% endif %}
 {% if task_command %}
           command: {{ task_command }}
@@ -368,6 +379,8 @@ spec:
         - image: '{{ _control_plane_ee_image }}'
           name: '{{ ansible_operator_meta.name }}-ee'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ ee_resource_requirements }}
           args:
             - /bin/sh
@@ -440,6 +453,8 @@ spec:
           args: {{ rsyslog_args }}
 {% endif %}
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ rsyslog_resource_requirements }}
           volumeMounts:
             - name: "{{ ansible_operator_meta.name }}-application-credentials"
@@ -524,14 +539,15 @@ spec:
       affinity:
         {{ affinity | to_nice_yaml | default("", true) | indent(width=8) }}
 {% endif %}
-{% if (projects_persistence|bool and is_k8s|bool) or (security_context_settings|length) %}
       securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
 {% if projects_persistence|bool and is_k8s|bool %}
         fsGroup: 1000
 {% endif %}
 {% if security_context_settings|length %}
         {{ security_context_settings | to_nice_yaml | default("", true) | indent(8) }}
-{% endif %}
 {% endif %}
 {% if termination_grace_period_seconds is defined %}
       terminationGracePeriodSeconds: {{ termination_grace_period_seconds }}

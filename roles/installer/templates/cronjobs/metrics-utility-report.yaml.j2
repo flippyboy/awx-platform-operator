@@ -20,6 +20,10 @@ spec:
             {{ lookup("template", "../common/templates/labels/common.yaml.j2")  | indent(width=12) | trim }}
             {{ lookup("template", "../common/templates/labels/version.yaml.j2") | indent(width=12) | trim }}
         spec:
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
 {% if image_pull_secret is defined %}
           imagePullSecrets:
             - name: {{ image_pull_secret }}
@@ -33,6 +37,8 @@ spec:
           - name: {{ ansible_operator_meta.name }}-{{ cronjob_name }}
             image: "{{ _metrics_utility_image }}"
             imagePullPolicy: "{{ image_pull_policy }}"
+            securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(14, true) }}
             resources:
               requests:
                 memory: "100Mi"

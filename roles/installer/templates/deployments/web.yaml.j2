@@ -56,12 +56,6 @@ spec:
         checksum-configmaps-proxy-env: "{{ lookup('template', 'configmaps/proxy-env.configmap.yaml.j2') | sha1 }}"
 {% endif %}
     spec:
-{% if uwsgi_listen_queue_size is defined and uwsgi_listen_queue_size|int > 128 %}
-      securityContext:
-        sysctls:
-        - name: net.core.somaxconn
-          value: "{{ uwsgi_listen_queue_size }}"
-{% endif %}
       serviceAccountName: '{{ ansible_operator_meta.name }}'
 {% if image_pull_secret is defined %}
       imagePullSecrets:
@@ -90,6 +84,8 @@ spec:
         - name: init-bundle-ca-trust
           image: '{{ _init_container_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
@@ -109,6 +105,8 @@ spec:
         - name: init
           image: '{{ _init_container_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
@@ -128,13 +126,18 @@ spec:
         - name: init-projects
           image: '{{ _init_projects_container_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
+            runAsUser: 1000
+            runAsGroup: 1000
           resources: {{ init_container_resource_requirements }}
           command:
             - /bin/sh
             - -c
             - |
-              chmod 775 /var/lib/awx/projects
-              chgrp 1000 /var/lib/awx/projects
+              chmod 775 /var/lib/awx/projects || true
+              chgrp 1000 /var/lib/awx/projects || true
+              test -w /var/lib/awx/projects
           env:
             - name: MY_POD_NAME
               valueFrom:
@@ -148,11 +151,8 @@ spec:
         - image: '{{ _redis_image }}'
           imagePullPolicy: '{{ image_pull_policy }}'
           name: redis
-{% if redis_capabilities is defined and redis_capabilities %}
           securityContext:
-            capabilities:
-              add: {{ redis_capabilities }}
-{% endif %}
+{{ lookup("template", "common/security/redis_container.yaml.j2") | indent(12, true) }}
           args: ["redis-server", "/etc/redis.conf"]
           volumeMounts:
             - name: {{ ansible_operator_meta.name }}-redis-config
@@ -167,6 +167,8 @@ spec:
         - image: '{{ _image }}'
           name: '{{ ansible_operator_meta.name }}-web'
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
 {% if web_command %}
           command: {{ web_command }}
 {% endif %}
@@ -323,6 +325,8 @@ spec:
           args: {{ rsyslog_args }}
 {% endif %}
           imagePullPolicy: '{{ image_pull_policy }}'
+          securityContext:
+{{ lookup("template", "common/security/restricted_container.yaml.j2") | indent(12, true) }}
           volumeMounts:
             - name: "{{ ansible_operator_meta.name }}-application-credentials"
               mountPath: "/etc/tower/conf.d/credentials.py"
@@ -395,8 +399,19 @@ spec:
       affinity:
         {{ affinity | to_nice_yaml | default("", true) | indent(width=8) }}
 {% endif %}
-{% if security_context_settings|length %}
       securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+{% if uwsgi_listen_queue_size is defined and uwsgi_listen_queue_size|int > 128 %}
+        sysctls:
+          - name: net.core.somaxconn
+            value: "{{ uwsgi_listen_queue_size }}"
+{% endif %}
+{% if projects_persistence|bool and is_k8s|bool %}
+        fsGroup: 1000
+{% endif %}
+{% if security_context_settings|length %}
         {{ security_context_settings | to_nice_yaml | indent(8) }}
 {% endif %}
       volumes:
