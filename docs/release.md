@@ -1,37 +1,40 @@
 # Operator + chart releases
 
-## Cadence (suggested)
+## Cadence
 
-| Track | Frequency | What ships |
-|-------|-----------|------------|
-| Operator / chart | ~biweekly or on demand | `awx-platform-operator` image + Helm chart |
-| Component images | Independent trains in **images repo** | `platform-ui-v*`, `jewel-with-ui-v*`, optional `awx-v*` |
+| Track | When | What ships |
+|-------|------|------------|
+| Operator / chart | On demand, from commits on `main` | `awx-platform-operator` image and Helm chart |
+| Component images | Independent trains in **awx-platform-images** | `platform-ui-v*`, `jewel-with-ui-v*`, optional `awx-v*` |
 
-Operator releases **pin** each component image digest/tag independently (only bump images that moved; see `release/pins.consumer.yaml`).
+The operator pins each component on its own (`release/pins.consumer.yaml`). Bump only the image that moved.
 
-## Tag scheme / GHCR paths
+## Tag scheme
 
-- Operator git tag: `v0.1.0`
-- Operator image: `ghcr.io/flippyboy/awx/awx-platform-operator:0.1.2`
-- Helm OCI package (separate from the image): `oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm` (chart version `0.1.2`)
-- Component images (images repo): `ghcr.io/flippyboy/awx/{platform-ui,jewel-with-ui}:…`
-- Gateway TLS: cert-manager Certificate → shared Secret (see v0.1.2 notes)
+New releases are calendar versions. `YYYY.MM.DD` is the UTC date of the cut. A second cut that day is `YYYY.MM.DD-1`.
 
-Chart package name comes from `Chart.yaml` `name: awx-platform-operator-helm` so Helm OCI push does not share the operator image package.
+| Artifact | Calver | Last semver |
+|----------|--------|-------------|
+| Git tag | `v2026.10.26` | `v0.1.13` |
+| Operator image | `ghcr.io/flippyboy/awx/awx-platform-operator:2026.10.26` | `:0.1.13` |
+| Helm OCI | `oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm` version `2026.10.26` | `0.1.13` |
 
-## Agent-assisted release (recommended flow)
+The chart package name is `Chart.yaml` `name: awx-platform-operator-helm`, so the Helm push does not share the operator image package. Image tags and chart versions omit the leading `v`. `v0.1.13` stays the last semver release. Do not add `0.1.14`.
 
-1. In **awx-platform-images**, run the release agent to refresh `pins.yaml` and produce notes (see that repo’s `release/AGENTS.md`).
-2. Publish image tags/digests.
-3. In **this** repo, open a PR:
-   - Bump chart `values.yaml` / examples default image refs
-   - Bump `Chart.yaml` `version` / `appVersion`
-   - Attach release notes (`release/notes/v0.1.0.md`)
-4. Merge + tag `v0.1.0` → GitHub Actions builds the operator image **and** pushes the Helm chart as its own package.
+Component images from the images repo use the same calendar scheme (`platform-ui-v2026.10.26`, image tag `2026.10.26`). Pins already published as `0.1.x` stay as they are until that component is cut again.
+
+`release/calver.py` picks the next version. `.github/workflows/release.yml` builds a `v*` tag, still accepts a legacy `v0.1.x` tag, and writes the version without `v` into the image tag and the chart.
+
+## Grok
+
+Same connection as **awx-platform-images**. Grok watches this repository and wakes up on a pull request. Grok reads the diff, comments, and can open the release pull request. GitHub Actions do not install or call Grok.
+
+Dependabot and other pull requests are the trigger. Review instructions are `release/AGENTS.md`. A release stays a pull request on `release/calver-<version>` until you ask for the tag. Pushing `vYYYY.MM.DD` starts `release.yml`, which builds the image, pushes the Helm chart, and opens the GitHub Release from `release/notes/v<version>.md`.
 
 ## Manual checklist
 
+- [ ] `python3 hack/scripts/check-dependabot-coverage.py`
 - [ ] `helm lint charts/awx-platform-operator`
-- [ ] Kind smoke green against target component images
+- [ ] Kind smoke green against the target component images
 - [ ] CRDs synced: `./hack/scripts/helm-sync-crds.sh`
-- [ ] Release notes list operator/chart changes **and** component pin table
+- [ ] Release notes list operator and chart changes and the component pin table

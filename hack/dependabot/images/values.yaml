@@ -1,0 +1,74 @@
+# Third-party images Dependabot cannot see in their real homes.
+#
+# Dependabot's docker ecosystem reads Helm-shaped blocks (`image.repository`
+# plus `image.tag`) and `image: repo:tag` lines in Kubernetes manifests and
+# Dockerfiles. It does not read Ansible defaults, shell scripts, or JSON-patch
+# files. Pins that live in those files are copied here so Dependabot can open
+# an update, and hack/scripts/check-dependabot-coverage.py fails until every
+# consumer matches.
+#
+# Tags in this file must be unique. Dependabot rewrites every `tag:` line in
+# the file that equals the old tag.
+#
+# Our own ghcr.io/flippyboy/awx/* releases are not listed. A calendar-version
+# cut bumps those tags. Dependabot does not.
+
+kube-rbac-proxy:
+  image:
+    repository: quay.io/brancz/kube-rbac-proxy
+    tag: v0.15.0
+  consumers:
+    - path: charts/awx-platform-operator/values.yaml
+      match: ref
+    - path: charts/awx-platform-operator/templates/operator-controller/_operator-controller.tpl
+      match: ref
+
+register-python:
+  image:
+    repository: mirror.gcr.io/library/python
+    tag: 3.12-slim
+  consumers:
+    - path: roles/gateway/defaults/main.yml
+      match: ref
+    - path: roles/gateway/templates/jobs/trust_register.yaml.j2
+      match: ref
+    - path: roles/platform/templates/jobs/trust.yaml.j2
+      match: ref
+
+centos-stream:
+  image:
+    repository: quay.io/centos/centos
+    tag: stream9
+  consumers:
+    - path: roles/installer/defaults/main.yml
+      match: ref
+    - path: playbooks/reconcile-controller-standalone.yml
+      match: ref
+    - path: hack/scripts/kind-reconcile-controller.sh
+      match: ref
+
+scorecard-test:
+  image:
+    repository: quay.io/operator-framework/scorecard-test
+    tag: v1.26.0
+  consumers:
+    - path: config/scorecard/patches/basic.config.yaml
+      match: ref
+    - path: config/scorecard/patches/olm.config.yaml
+      match: ref
+
+cert-manager:
+  image:
+    repository: quay.io/jetstack/cert-manager-controller
+    tag: v1.16.2
+  consumers:
+    # The kind install applies the release bundle. The bundle version matches
+    # the controller image tag.
+    - path: hack/scripts/kind-install-cert-manager.sh
+      match: tag
+    - path: charts/awx-platform-operator/README.md
+      match: tag
+    - path: charts/awx-platform-operator/templates/NOTES.txt
+      match: tag
+    - path: charts/awx-platform-operator/values.yaml
+      match: tag

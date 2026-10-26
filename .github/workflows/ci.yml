@@ -34,7 +34,7 @@ jobs:
             --namespace awx-platform >/dev/null
       - name: Check rendered Helm CR types
         run: |
-          pip install pyyaml jinja2
+          pip install -r hack/ci/requirements.txt
           helm template test charts/awx-platform-operator \
             -f charts/awx-platform-operator/examples/platform-kind.yaml \
             --namespace awx-platform > /tmp/helm-platform.yaml
@@ -68,7 +68,7 @@ jobs:
           python-version: "3.12"
       - name: Install ansible + kubernetes.core
         run: |
-          pip install "ansible-core>=2.16,<2.19"
+          pip install -r hack/ci/requirements.txt
           ansible-galaxy collection install kubernetes.core
       - name: Syntax-check operator playbooks
         env:
@@ -82,3 +82,17 @@ jobs:
           done
       - name: Check child CR YAML types
         run: python3 hack/scripts/check-cr-types.py
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install CI requirements
+        run: pip install -r hack/ci/requirements.txt
+      - name: Dependabot sees every pinned dependency
+        run: python3 hack/scripts/check-dependabot-coverage.py
+      - name: Calendar version rules
+        run: python3 -m unittest discover -s release -p 'test_*.py'

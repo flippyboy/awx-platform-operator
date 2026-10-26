@@ -1,6 +1,6 @@
 # Minimal Controller (web only) for kind JWT / gateway trust tests.
 # Not a full operator-managed AWX — redis TCP + postgres + gateway secret.
----
+# The first document starts here so Dependabot treats the file as Kubernetes YAML.
 apiVersion: v1
 kind: Secret
 metadata:

@@ -1,0 +1,13 @@
+# Molecule toolchain. Pins are in requirements.txt so Dependabot can bump them.
+# The previous caps (molecule<4.0.2, ansible-compat<4, Cython<3) matched
+# 2022-era breakage and left these dependencies unpinned, so Dependabot
+# never opened updates.
+molecule
+molecule-docker
+yamllint
+ansible-lint
+openshift!=0.13.0
+jmespath
+ansible-core
+ansible-compat
+Cython

@@ -1,5 +1,12 @@
 name: release
 
+# Git tags:
+#   v2026.10.26        first cut that UTC day
+#   v2026.10.26-1      another cut the same day
+#   v0.1.x             legacy semver, already published
+#
+# Image and chart versions drop the leading v: 2026.10.26
+
 on:
   push:
     tags:
@@ -32,14 +39,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, re, sys
+          sys.path.insert(0, "release")
+          import calver
+          ref = os.environ["GITHUB_REF_NAME"]
+          version = ref[1:] if ref.startswith("v") else ref
+          legacy = re.fullmatch(r"0\.\d+\.\d+", version)
+          if not calver.is_calver(version) and not legacy:
+              print(
+                  f"::error::Tag {ref} must be calver vYYYY.MM.DD "
+                  "or vYYYY.MM.DD-N (legacy v0.x.y tags still build)",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          print(f"version={version}")
+          PY
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.OPERATOR_IMAGE }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.ver.outputs.version }}
             type=sha
 
       - name: Build and push operator image
@@ -59,10 +86,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          VERSION=${GITHUB_REF_NAME#v}
+          VERSION=${{ steps.ver.outputs.version }}
           # Chart package name is Chart.yaml "name" → awx-platform-operator-helm
           sed -i "s/^version:.*/version: ${VERSION}/" charts/awx-platform-operator/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${GITHUB_REF_NAME}\"/" charts/awx-platform-operator/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/awx-platform-operator/Chart.yaml
           # Ensure operator image default in chart matches this release
           sed -i "s|^  image:.*|  image: ${OPERATOR_IMAGE}|" charts/awx-platform-operator/values.yaml
           sed -i "s|^  tag:.*|  tag: \"${VERSION}\"|" charts/awx-platform-operator/values.yaml
@@ -74,5 +101,7 @@ jobs:
       - name: Attach chart tarball to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # v0.1.13 → release/notes/v0.1.13.md, v2026.10.26 → release/notes/v2026.10.26.md
+          body_path: release/notes/v${{ steps.ver.outputs.version }}.md
           files: dist/*.tgz
           generate_release_notes: true

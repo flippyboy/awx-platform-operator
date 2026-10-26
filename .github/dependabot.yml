@@ -1,11 +1,11 @@
 version: 2
 updates:
-  # Actions used by .github/workflows.
+  # Actions in .github/workflows. Local ./ actions are rejected by CI.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - dependencies
     groups:
@@ -13,21 +13,38 @@ updates:
         patterns:
           - "*"
 
-  # Operator runtime image (quay.io/operator-framework/ansible-operator).
+  # Dockerfile plus Kubernetes manifests. Dependabot does not recurse, so each
+  # directory that holds a Dockerfile or a manifest is listed.
+  # hack/dependabot/images/values.yaml covers pins that are not image: lines
+  # in a manifest (Ansible defaults, the cert-manager bundle, scorecard patches).
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /hack/kind/platform-smoke
+      - /hack/kind/controller-smoke
+      - /hack/dependabot/images
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - dependencies
+    groups:
+      docker:
+        patterns:
+          - "*"
+    # Upstream AWX and Jewel stay on development tags. Local kind images are not pulls.
+    ignore:
+      - dependency-name: "ansible/awx"
+      - dependency-name: "ansible/awx-ee"
+      - dependency-name: "ansible/jewel"
+      - dependency-name: "awx-compose/jewel"
 
-  # Docs site, pip-compile from docs/requirements.in.
+  # Docs site. pip-compile lock is docs/requirements.txt.
   - package-ecosystem: pip
     directory: /docs
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - dependencies
     groups:
@@ -35,12 +52,12 @@ updates:
         patterns:
           - "*"
 
-  # Molecule / ansible-lint toolchain.
+  # Molecule toolchain. Direct pins live in molecule/requirements.txt.
   - package-ecosystem: pip
     directory: /molecule
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - dependencies
     groups:
@@ -48,6 +65,23 @@ updates:
         patterns:
           - "*"
 
-# Ansible collections in requirements.yml are not a Dependabot ecosystem.
-# kubernetes.core and operator_sdk.util stay pinned there and are installed
-# by the operator image build.
+  # CI interpreter packages (pyyaml, jinja2, ansible-core).
+  - package-ecosystem: pip
+    directory: /hack/ci
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    groups:
+      ci-python:
+        patterns:
+          - "*"
+    ignore:
+      # Playbook syntax checks stay on the 2.18 line until an explicit upgrade.
+      - dependency-name: ansible-core
+        versions:
+          - ">=2.19"
+
+# Ansible Galaxy is not a Dependabot ecosystem. requirements.yml and
+# molecule/requirements.yml pin collection versions. kubernetes.core stays 3.2.0.

@@ -1,0 +1,5 @@
+# Pinned direct dependencies. Dependabot updates the == lines.
+# Constraints live in requirements.in and in .github/dependabot.yml.
+pyyaml==6.0.3
+jinja2==3.1.6
+ansible-core==2.18.19

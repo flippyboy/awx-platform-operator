@@ -2,8 +2,12 @@
 # Source of truth for *choosing* pins lives in awx-platform-images (pins.yaml).
 # Each image has an independent release train — bump only what changed.
 #
-# Images repo tags: platform-ui-vX.Y.Z, jewel-with-ui-vX.Y.Z (not a single images-v*).
-# Image tags on GHCR are clean semver: ghcr.io/flippyboy/awx/<name>:X.Y.Z
+# Images repo git tags: platform-ui-vYYYY.MM.DD, jewel-with-ui-vYYYY.MM.DD
+# (same-day recut: platform-ui-vYYYY.MM.DD-N). GHCR image tags omit the v.
+# Tags already published as 0.1.x stay as they are until that component is cut again.
+#
+# This operator's git tags are vYYYY.MM.DD from the next cut onward.
+# The operator pin below stays 0.1.13 until that cut.
 #
 # schema_version: 1
 

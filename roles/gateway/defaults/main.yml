@@ -15,7 +15,7 @@ database_name: gateway
 
 # Managed Redis Deployment (default). Skip when redis_url or redis_configuration_secret set.
 redis_image: docker.io/redis
-redis_image_version: "7"
+redis_image_version: "7.4"
 # External Redis: redis://host:6379/0  OR secret with key url (or host+port)
 redis_url: ''
 redis_configuration_secret: ''

@@ -1,9 +1,10 @@
-molecule<4.0.2
-molecule-docker
-yamllint
-ansible-lint
-openshift!=0.13.0
-jmespath
-ansible-core
-ansible-compat<4  # https://github.com/ansible-community/molecule/issues/3903
-Cython<3  # https://github.com/yaml/pyyaml/issues/601
+# Pinned direct dependencies. Dependabot updates the == lines.
+molecule==26.10.0
+molecule-docker==2.1.0
+yamllint==1.38.0
+ansible-lint==26.10.1
+openshift==0.13.2
+jmespath==1.1.0
+ansible-core==2.21.5
+ansible-compat==26.10.0
+Cython==3.3.0

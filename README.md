@@ -31,6 +31,8 @@ The Helm chart is a **separate** GHCR package from the operator container image 
 
 ## Quick start (cluster with operator image)
 
+Releases through `0.1.13` are semver. Later releases are calendar versions: git tag `v2026.10.26`, image and chart version `2026.10.26`. A second cut the same UTC day is `2026.10.26-1`.
+
 ```bash
 # From OCI (after a release tag)
 helm upgrade --install awx-platform oci://ghcr.io/flippyboy/awx/awx-platform-operator-helm \
