@@ -16,7 +16,7 @@
 kube-rbac-proxy:
   image:
     repository: quay.io/brancz/kube-rbac-proxy
-    tag: v0.15.0
+    tag: v0.23.1
   consumers:
     - path: charts/awx-platform-operator/values.yaml
       match: ref
@@ -26,7 +26,7 @@ kube-rbac-proxy:
 register-python:
   image:
     repository: mirror.gcr.io/library/python
-    tag: 3.12-slim
+    tag: 3.15-slim
   consumers:
     - path: roles/gateway/defaults/main.yml
       match: ref
@@ -50,7 +50,7 @@ centos-stream:
 scorecard-test:
   image:
     repository: quay.io/operator-framework/scorecard-test
-    tag: v1.26.0
+    tag: v1.42.3
   consumers:
     - path: config/scorecard/patches/basic.config.yaml
       match: ref
@@ -60,7 +60,7 @@ scorecard-test:
 cert-manager:
   image:
     repository: quay.io/jetstack/cert-manager-controller
-    tag: v1.16.2
+    tag: v1.21.3
   consumers:
     # The kind install applies the release bundle. The bundle version matches
     # the controller image tag.

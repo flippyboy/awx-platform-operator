@@ -99,7 +99,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: gen-tls
-          image: mirror.gcr.io/envoyproxy/envoy:v1.36.6
+          image: mirror.gcr.io/envoyproxy/envoy:v1.40.1
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
