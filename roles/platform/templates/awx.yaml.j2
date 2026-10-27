@@ -19,4 +19,5 @@ spec:
   gateway_validate_certs: {{ (gateway_validate_certs | default(false)) | bool | ternary(true, false) }}
   gateway_service_secret_secret: {{ __gateway_service_secret }}
   image: {{ controller.image | default("ghcr.io/ansible/awx") }}
+  {# A sha256 image_version is a digest. The installer joins image@digest. #}
   image_version: "{{ controller.image_version | default('devel') }}"

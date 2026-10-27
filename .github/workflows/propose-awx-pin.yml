@@ -1,0 +1,57 @@
+name: propose-awx-pin
+
+# Record the ansible/awx devel commit and the digest of the floating devel tag.
+# The pull request lists upstream commits. Merging it does not tag a release.
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Propose AWX pin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python release/awx_pin.py --root . --github-token "$GITHUB_TOKEN"
+      - name: Create PR if changed
+        uses: peter-evans/create-pull-request@v8
+        with:
+          commit-message: "chore(pins): propose awx devel pin"
+          title: "chore(pins): propose AWX development-branch pin"
+          body: |
+            Automated proposal of the **ansible/awx** `devel` pin.
+
+            The cluster pull is `ghcr.io/ansible/awx@sha256:…`. `devel` is the
+            branch we track and the floating tag whose digest we record. Stable
+            and semver upstream tags are not used.
+
+            **Review before merge.** This updates the defaults the next operator
+            release ships. It does not tag a release.
+
+            - `release/pins.consumer.yaml` — devel commit and image digest
+            - `release/notes/PROPOSED-awx.md` — upstream commits since the current pin
+            - controller `image_version` — the digest, so the installer pulls `image@digest`
+
+            The next operator release copies the upstream commit list into its release notes.
+          branch: chore/awx-pin-proposal
+          add-paths: |
+            release/pins.consumer.yaml
+            release/notes/PROPOSED-awx.md
+            roles/platform/defaults/main.yml
+            charts/awx-platform-operator/values.yaml
+            charts/awx-platform-operator/examples/platform-kind.yaml
+            hack/kind/samples/awx-controller.yaml
+            hack/kind/controller-smoke/controller.yaml
+            playbooks/reconcile-controller-standalone.yml
+            config/samples/awx_v1beta1_awxplatform.yaml

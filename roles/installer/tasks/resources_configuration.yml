@@ -228,12 +228,22 @@
   set_fact:
     _default_image: "{{ _image }}:{{ _image_version }}"
 
-- name: Set user provided awx app image
+# A sha256 image_version is a digest. Join image and digest with @.
+- name: Set user provided awx app image by digest
+  set_fact:
+    _custom_image: "{{ image }}@{{ image_version }}"
+  when:
+    - image | default([]) | length
+    - image_version is defined and image_version != ''
+    - image_version is match('^sha256:[0-9a-f]{64}$')
+
+- name: Set user provided awx app image by tag
   set_fact:
     _custom_image: "{{ image }}:{{ image_version }}"
   when:
     - image | default([]) | length
     - image_version is defined and image_version != ''
+    - not (image_version is match('^sha256:[0-9a-f]{64}$'))
 
 - name: Set AWX app image URL
   set_fact:

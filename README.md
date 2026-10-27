@@ -75,11 +75,11 @@ release/          pins consumers, note templates (see also images repo)
 | Concern | This repo | awx-platform-images |
 |---------|-----------|---------------------|
 | Operator / Helm | ✅ | — |
-| Jewel / UI / AWX images | consumes tags/digests | builds & pushes |
+| Jewel / UI images | consumed from `images-released` | builds & pushes |
+| Upstream AWX pin | `propose-awx-pin` records the devel commit and digest | records the same upstream for its own builds; does not choose the cluster pull |
 | Compose stack | — | ✅ testing |
-| Upstream git pins | documents operator-tested pins | owns pin file + agent release |
 
-Default image tags in the Helm chart should match **released** pins from the images repo.
+Jewel and platform-ui tags in the chart match the images repo. The controller pull is `ghcr.io/ansible/awx` at the digest `propose-awx-pin` records. `devel` is the branch label, not the tag a cluster pulls.
 
 ## Development
 

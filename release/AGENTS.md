@@ -4,7 +4,7 @@ Companion: **awx-platform-images**. That repo opens a pull request when componen
 
 GitHub Actions do not start you. Do not add a workflow that installs the Grok CLI or calls the xAI API. A pull request on this repository is the trigger for operator code and Dependabot. You use GitHub (read the diff, comment, open a pull request, push a tag only when asked).
 
-Component image tags are not chosen from those pull requests. After `awx-platform-images` publishes an image, it dispatches `images-released`. `.github/workflows/consume-image-release.yml` pins that tag and digest and pushes `vYYYY.MM.DD`, which starts `release.yml`. Do not also open a pin pull request for that image.
+Component image tags are not chosen from those pull requests. After `awx-platform-images` publishes an image, it dispatches `images-released`. `.github/workflows/consume-image-release.yml` pins that tag and digest and pushes `vYYYY.MM.DD`, which starts `release.yml`. Do not also open a pin pull request for that image. The upstream controller is the exception: `propose-awx-pin` is the pull request that chooses it. Do not open another one by hand.
 
 ## Versions
 
@@ -29,7 +29,9 @@ Dependabot only sees GitHub Actions, the pip locks in `docs/`, `molecule/`, and 
 
 Leave these alone:
 
-- `ghcr.io/ansible/awx:devel` and jewel `latest`. Do not move them onto a stable semver tag.
+- `ghcr.io/ansible/awx` stays the controller repository. Do not move it onto a stable semver tag, and do not retarget it to `ghcr.io/flippyboy/awx/awx` unless `images-released` published a built `awx-v*` image.
+- Floating `:devel` is not the pull. `.github/workflows/propose-awx-pin.yml` opens a pull request that records the `devel` commit and the digest of `ghcr.io/ansible/awx:devel`, writes that digest into controller `image_version`, and lists the upstream commits in `release/notes/PROPOSED-awx.md`. Review that pull request. Do not open a second one. Merging it does not tag a release.
+- Jewel `latest`. Do not move it onto a stable semver tag.
 - `ghcr.io/flippyboy/awx/*` release tags. They move only when this operator, or the images repo, cuts a release.
 - `kubernetes.core` `3.2.0`.
 - `hack/ci` `ansible-core` `>=2.16,<2.19`.
@@ -46,8 +48,8 @@ If `git log` since `git describe --tags --abbrev=0 --match 'v*'` is empty, or th
 Otherwise:
 
 1. Set `charts/awx-platform-operator/Chart.yaml` `version` and `appVersion`, `operator.tag` in the chart values, and `images.awx-operator.tag` in `release/pins.consumer.yaml` to `next_version`. Keep `appVersion` and the tag values quoted. `operator.tag` must stay the only line that is two spaces plus `tag:`.
-2. Leave jewel, platform-ui, and the upstream awx pin as they are. Image publishes update those pins through `images-released`. Do not fetch awx-platform-images to move `awx` off `devel`. The controller stays `ghcr.io/ansible/awx` pinned by digest; see awx-platform-images `docs/awx-image.md`.
-3. Add `release/notes/v<version>.md`. Do not rewrite `release/notes/v0.1.*.md`. Sections: operator changes, Helm, component pin table, upgrade notes, packages. The Helm example uses `--version` without a leading `v`.
+2. Leave jewel and platform-ui as they are. `images-released` updates those. Leave the upstream AWX pin as the last merged `propose-awx-pin` result. Do not fetch awx-platform-images to copy its awx pin, and do not put `devel` back into `image_version` once a digest is recorded. The controller stays `ghcr.io/ansible/awx` at that digest.
+3. Add `release/notes/v<version>.md`. Do not rewrite `release/notes/v0.1.*.md`. Sections: operator changes, Helm, component pin table, upstream AWX commits, upgrade notes, packages. Copy the `## Upstream changes` section from `release/notes/PROPOSED-awx.md` when that file exists. `consume_image.py` does this for an image publish. The Helm example uses `--version` without a leading `v`.
 4. Copy any catalog or kind tag that changed onto every consumer the coverage script checks.
 5. Run `python3 hack/scripts/check-dependabot-coverage.py` and `python3 -m unittest discover -s release -p 'test_*.py'`.
 
@@ -64,7 +66,9 @@ Open a pull request from `release/calver-<version>`. Do not push it to `main`, a
 ```text
 [ ] pull request reviewed (comment only)
 [ ] component image pins changed only by images-released, not by this review
+[ ] upstream awx pin changes only come from propose-awx-pin
 [ ] pins.consumer.yaml still matches the last consumed image tag
+[ ] release notes include the upstream AWX commit list when that pin exists
 [ ] catalog and kind image pins copied to every consumer
 [ ] release/notes/vYYYY.MM.DD.md written
 [ ] user approved a tag

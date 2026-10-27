@@ -33,7 +33,7 @@ Dependabot and operator-code pull requests are the trigger for changes in this r
 
 A component image release is the other trigger. `awx-platform-images` dispatches `images-released` after the image push. This repo then tags `vYYYY.MM.DD` without a review pull request, because the image tag and digest are already published. Pushing that tag starts `release.yml`, which builds the operator image, pushes the Helm chart, and opens the GitHub Release from `release/notes/v<version>.md`.
 
-The controller image is not built here. It stays `ghcr.io/ansible/awx`, and the plan is to pin that image by digest rather than mint a semver for a rebuild. See `docs/awx-image.md` in awx-platform-images.
+The controller image is not built here. `.github/workflows/propose-awx-pin.yml` runs weekly and on demand. It resolves `devel` on `ansible/awx` and the digest of `ghcr.io/ansible/awx:devel`, then opens a pull request. The pull request writes that digest into controller `image_version` and lists the upstream commits in `release/notes/PROPOSED-awx.md`. Merging it does not tag a release. The next operator release copies that commit list into `release/notes/v<version>.md`. The installer pulls `image@digest` when `image_version` is a `sha256` digest, and `image:tag` otherwise. Do not pin an upstream semver tag. See `docs/awx-image.md` in awx-platform-images.
 
 ## Manual checklist
 
@@ -41,4 +41,4 @@ The controller image is not built here. It stays `ghcr.io/ansible/awx`, and the 
 - [ ] `helm lint charts/awx-platform-operator`
 - [ ] Kind smoke green against the target component images
 - [ ] CRDs synced: `./hack/scripts/helm-sync-crds.sh`
-- [ ] Release notes list operator and chart changes and the component pin table
+- [ ] Release notes list operator and chart changes, the component pin table, and the upstream AWX commits from `release/notes/PROPOSED-awx.md`

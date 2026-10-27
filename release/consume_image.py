@@ -159,6 +159,22 @@ def _set_chart_version(text: str, version: str) -> str:
     return text
 
 
+def awx_changelog(root: Path) -> str:
+    """Commit list from the last merged AWX pin proposal, if there is one."""
+    path = root / "release" / "notes" / "PROPOSED-awx.md"
+    if not path.is_file():
+        return (
+            "No AWX pin proposal has been merged yet. The controller pull stays "
+            "`ghcr.io/ansible/awx:devel` until `propose-awx-pin` records a commit and digest.\n"
+        )
+    text = path.read_text(encoding="utf-8")
+    marker = "## Upstream changes"
+    index = text.find(marker)
+    if index < 0:
+        return "AWX pin notes are in `release/notes/PROPOSED-awx.md`.\n"
+    return text[index + len(marker) :].strip() + "\n"
+
+
 def _notes(
     *,
     operator_version: str,
@@ -166,15 +182,22 @@ def _notes(
     version: str,
     digest: str,
     git_tag: str,
-    previous: dict[str, tuple[str, str]],
+    previous: dict[str, tuple[str, str, str, str]],
     repository: str,
+    awx_changes: str,
 ) -> str:
     rows = []
     for name in ("platform-ui", "jewel-with-ui", "awx"):
-        old_tag, old_ref = previous[name]
+        old_tag, old_ref, old_digest, old_repo = previous[name]
         if name == component:
             new = f"`{version}` (`{digest}`)"
             ref = f"`{git_tag}`"
+        elif name == "awx" and old_digest:
+            new = f"`{old_repo}@{old_digest}` (tracking `{old_tag}`)"
+            ref = "—"
+        elif name == "awx":
+            new = f"`{old_tag}` (no digest yet)"
+            ref = "—"
         else:
             new = f"`{old_tag}` (unchanged)"
             ref = f"`{old_ref}`" if old_ref else "—"
@@ -200,6 +223,10 @@ No operator code changes. This release records the image published by `{git_tag}
 | Component | Previous | New | Images-repo tag |
 |-----------|----------|-----|-----------------|
 {table}
+
+## Upstream AWX
+
+{awx_changes.rstrip()}
 
 ## Upgrade notes
 
@@ -254,6 +281,8 @@ def apply(
         previous[name] = (
             read_leaf(pins, ("images", name), "tag"),
             read_leaf(pins, ("source_releases",), name),
+            read_leaf(pins, ("images", name), "digest"),
+            read_leaf(pins, ("images", name), "repository"),
         )
 
     repository = read_leaf(pins, image_path, "repository")
@@ -303,11 +332,20 @@ def apply(
             _write(path, text)
         kind = root / KIND_CONTROLLER
         kind_text = _read(kind)
-        old = f"image: {UPSTREAM_AWX_IMAGE}:devel"
         new = f"image: {OUR_AWX_IMAGE}:{version}"
-        if old not in kind_text:
-            raise RuntimeError(f"{KIND_CONTROLLER} has no {old}")
-        _write(kind, kind_text.replace(old, new, 1))
+        devel = f"image: {UPSTREAM_AWX_IMAGE}:devel"
+        if devel in kind_text:
+            kind_text = kind_text.replace(devel, new, 1)
+        else:
+            kind_text, count = re.subn(
+                rf"image: {re.escape(UPSTREAM_AWX_IMAGE)}@sha256:[0-9a-f]{{64}}",
+                new,
+                kind_text,
+                count=1,
+            )
+            if count != 1:
+                raise RuntimeError(f"{KIND_CONTROLLER} has no upstream awx image to retarget")
+        _write(kind, kind_text)
 
     notes = root / "release" / "notes" / f"v{operator_version}.md"
     if notes.exists():
@@ -321,6 +359,7 @@ def apply(
             git_tag=git_tag,
             previous=previous,
             repository=repository,
+            awx_changes=awx_changelog(root),
         ),
         encoding="utf-8",
     )

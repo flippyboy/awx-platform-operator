@@ -168,6 +168,58 @@ class ConsumeImageTest(unittest.TestCase):
             )
             self.assertEqual(result.operator_version, "2026.10.26-1")
 
+    def test_notes_include_awx_upstream_commits(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as hold:
+            tree = _tree(Path(hold))
+            proposal = tree / "release" / "notes" / "PROPOSED-awx.md"
+            proposal.write_text(
+                "# Proposed AWX controller pin\n\nReview before merge.\n\n"
+                "## Upstream changes\n\n"
+                "### `awx` (`devel`)\n\n"
+                "- [`abcdefabcdef`](https://github.com/ansible/awx/commit/abcdef) 2026-10-27 fixed the scheduler\n",
+                encoding="utf-8",
+            )
+            consume_image.apply(
+                tree,
+                component="platform-ui",
+                version="2026.10.26",
+                digest=DIGEST,
+                git_tag="platform-ui-v2026.10.26",
+                today=DAY,
+            )
+            notes = (tree / "release/notes/v2026.10.26.md").read_text(encoding="utf-8")
+            self.assertIn("## Upstream AWX", notes)
+            self.assertIn("fixed the scheduler", notes)
+            self.assertNotIn("Review before merge", notes)
+
+    def test_awx_build_replaces_a_digest_pin(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as hold:
+            tree = _tree(Path(hold))
+            kind = tree / consume_image.KIND_CONTROLLER
+            pinned = "sha256:" + "ef" * 32
+            kind.write_text(
+                kind.read_text(encoding="utf-8").replace(
+                    "ghcr.io/ansible/awx:devel",
+                    f"ghcr.io/ansible/awx@{pinned}",
+                ),
+                encoding="utf-8",
+            )
+            consume_image.apply(
+                tree,
+                component="awx",
+                version="2026.10.26",
+                digest=DIGEST,
+                git_tag="awx-v2026.10.26",
+                today=DAY,
+            )
+            text = kind.read_text(encoding="utf-8")
+            self.assertIn(f"image: {consume_image.OUR_AWX_IMAGE}:2026.10.26", text)
+            self.assertNotIn(pinned, text)
+
     def test_rejects_bad_digest(self):
         import tempfile
 
