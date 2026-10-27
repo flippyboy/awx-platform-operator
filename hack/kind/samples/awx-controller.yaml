@@ -11,7 +11,7 @@ metadata:
 spec:
   # Images (loaded into kind by reconcile script)
   image: ghcr.io/ansible/awx
-  image_version: devel
+  image_version: "sha256:e37096528788f78fb8f9ebe1255c8f16fda1b4f0929180a83d40ec6be9319680"
   image_pull_policy: IfNotPresent
   # Prefer light EE tags available for kind; override via reconcile vars
   control_plane_ee_image: quay.io/ansible/awx-ee:latest
