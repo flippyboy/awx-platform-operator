@@ -2,7 +2,9 @@
 
 Companion: **awx-platform-images**. That repo opens a pull request when component pins move. You review it from Grok, through GitHub. This repo works the same way.
 
-GitHub Actions do not start you. Do not add a workflow that installs the Grok CLI or calls the xAI API. A pull request on this repository is the trigger. You use GitHub (read the diff, comment, open a pull request, push a tag only when asked).
+GitHub Actions do not start you. Do not add a workflow that installs the Grok CLI or calls the xAI API. A pull request on this repository is the trigger for operator code and Dependabot. You use GitHub (read the diff, comment, open a pull request, push a tag only when asked).
+
+Component image tags are not chosen from those pull requests. After `awx-platform-images` publishes an image, it dispatches `images-released`. `.github/workflows/consume-image-release.yml` pins that tag and digest and pushes `vYYYY.MM.DD`, which starts `release.yml`. Do not also open a pin pull request for that image.
 
 ## Versions
 
@@ -44,7 +46,7 @@ If `git log` since `git describe --tags --abbrev=0 --match 'v*'` is empty, or th
 Otherwise:
 
 1. Set `charts/awx-platform-operator/Chart.yaml` `version` and `appVersion`, `operator.tag` in the chart values, and `images.awx-operator.tag` in `release/pins.consumer.yaml` to `next_version`. Keep `appVersion` and the tag values quoted. `operator.tag` must stay the only line that is two spaces plus `tag:`.
-2. Leave jewel, platform-ui, and the upstream awx pin as they are unless those commits changed them. Do not fetch awx-platform-images to move `awx` off `devel`.
+2. Leave jewel, platform-ui, and the upstream awx pin as they are. Image publishes update those pins through `images-released`. Do not fetch awx-platform-images to move `awx` off `devel`. The controller stays `ghcr.io/ansible/awx` pinned by digest; see awx-platform-images `docs/awx-image.md`.
 3. Add `release/notes/v<version>.md`. Do not rewrite `release/notes/v0.1.*.md`. Sections: operator changes, Helm, component pin table, upgrade notes, packages. The Helm example uses `--version` without a leading `v`.
 4. Copy any catalog or kind tag that changed onto every consumer the coverage script checks.
 5. Run `python3 hack/scripts/check-dependabot-coverage.py` and `python3 -m unittest discover -s release -p 'test_*.py'`.
@@ -61,8 +63,8 @@ Open a pull request from `release/calver-<version>`. Do not push it to `main`, a
 
 ```text
 [ ] pull request reviewed (comment only)
-[ ] images release published for any component that changed
-[ ] pins.consumer.yaml updated (only those components)
+[ ] component image pins changed only by images-released, not by this review
+[ ] pins.consumer.yaml still matches the last consumed image tag
 [ ] catalog and kind image pins copied to every consumer
 [ ] release/notes/vYYYY.MM.DD.md written
 [ ] user approved a tag

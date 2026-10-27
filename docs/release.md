@@ -4,10 +4,10 @@
 
 | Track | When | What ships |
 |-------|------|------------|
-| Operator / chart | On demand, from commits on `main` | `awx-platform-operator` image and Helm chart |
+| Operator / chart | After an images-repo publish, and on demand for operator code | `awx-platform-operator` image and Helm chart |
 | Component images | Independent trains in **awx-platform-images** | `platform-ui-v*`, `jewel-with-ui-v*`, optional `awx-v*` |
 
-The operator pins each component on its own (`release/pins.consumer.yaml`). Bump only the image that moved.
+The operator pins each component on its own (`release/pins.consumer.yaml`). An image publish in **awx-platform-images** dispatches `images-released`. `consume-image-release.yml` bumps only that image, commits the pin, and pushes `vYYYY.MM.DD`. That tag starts `release.yml`. Dependabot and operator-code pull requests do not choose component image tags.
 
 ## Tag scheme
 
@@ -29,7 +29,11 @@ Component images from the images repo use the same calendar scheme (`platform-ui
 
 Same connection as **awx-platform-images**. Grok watches this repository and wakes up on a pull request. Grok reads the diff, comments, and can open the release pull request. GitHub Actions do not install or call Grok.
 
-Dependabot and other pull requests are the trigger. Review instructions are `release/AGENTS.md`. A release stays a pull request on `release/calver-<version>` until you ask for the tag. Pushing `vYYYY.MM.DD` starts `release.yml`, which builds the image, pushes the Helm chart, and opens the GitHub Release from `release/notes/v<version>.md`.
+Dependabot and operator-code pull requests are the trigger for changes in this repo. Review instructions are `release/AGENTS.md`. A release of those changes stays a pull request on `release/calver-<version>` until you ask for the tag.
+
+A component image release is the other trigger. `awx-platform-images` dispatches `images-released` after the image push. This repo then tags `vYYYY.MM.DD` without a review pull request, because the image tag and digest are already published. Pushing that tag starts `release.yml`, which builds the operator image, pushes the Helm chart, and opens the GitHub Release from `release/notes/v<version>.md`.
+
+The controller image is not built here. It stays `ghcr.io/ansible/awx`, and the plan is to pin that image by digest rather than mint a semver for a rebuild. See `docs/awx-image.md` in awx-platform-images.
 
 ## Manual checklist
 

@@ -1,0 +1,118 @@
+name: consume-image-release
+
+# awx-platform-images calls this after an image push. The tag push uses
+# OPERATOR_RELEASE_TOKEN so release.yml runs. A GITHUB_TOKEN tag push would not.
+#
+# The token needs contents:write on this repo and permission to push tags.
+# A classic token with repo and workflow scopes is enough. Prefer a fine-grained
+# token limited to this repository (contents and actions).
+
+on:
+  repository_dispatch:
+    types: [images-released]
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Image that awx-platform-images just published
+        required: true
+        type: choice
+        options:
+          - platform-ui
+          - jewel-with-ui
+          - awx
+      version:
+        description: Image tag (YYYY.MM.DD or YYYY.MM.DD-N)
+        required: true
+        type: string
+      digest:
+        description: sha256 digest of that tag
+        required: true
+        type: string
+      git_tag:
+        description: Images-repo git tag, for example jewel-with-ui-v2026.10.26
+        required: true
+        type: string
+
+concurrency:
+  group: consume-image-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  consume:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require release token
+        env:
+          TOKEN: ${{ secrets.OPERATOR_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TOKEN}" ]]; then
+            echo "::error::Set OPERATOR_RELEASE_TOKEN so this job can push the operator tag and start release.yml."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          token: ${{ secrets.OPERATOR_RELEASE_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Pin the published image
+        id: consume
+        env:
+          EVENT_PATH: ${{ github.event_path }}
+        run: |
+          set -euo pipefail
+          eval "$(python3 - "$EVENT_PATH" <<'PY'
+          import json, shlex, sys
+          event = json.load(open(sys.argv[1], encoding="utf-8"))
+          payload = event.get("client_payload") or {}
+          inputs = event.get("inputs") or {}
+
+          def pick(key):
+              value = payload.get(key)
+              if value is None or value == "":
+                  value = inputs.get(key) or ""
+              return str(value).strip()
+
+          for key in ("component", "version", "digest", "git_tag"):
+              print(f"{key}={shlex.quote(pick(key))}")
+          PY
+          )"
+          python3 release/consume_image.py \
+            --root . \
+            --component "$component" \
+            --version "$version" \
+            --digest "$digest" \
+            --git-tag "$git_tag" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Commit and tag the operator release
+        if: steps.consume.outputs.skipped != 'true'
+        env:
+          OP: ${{ steps.consume.outputs.operator_version }}
+          COMPONENT: ${{ steps.consume.outputs.component }}
+          IMAGE_VERSION: ${{ steps.consume.outputs.image_version }}
+        run: |
+          set -euo pipefail
+          git config user.name flippyboy
+          git config user.email "flippyboy@users.noreply.github.com"
+          git add \
+            release/pins.consumer.yaml \
+            release/notes \
+            charts/awx-platform-operator \
+            roles/gateway/defaults/main.yml \
+            roles/platform/defaults/main.yml \
+            hack/kind/controller-smoke/controller.yaml
+          git commit -m "release: v${OP} pin ${COMPONENT} ${IMAGE_VERSION}"
+          git push origin HEAD:main
+          git tag -a "v${OP}" -m "awx-platform-operator v${OP}"
+          git push origin "v${OP}"
+          echo "Pushed v${OP}. release.yml publishes the image and the chart."
