@@ -11,7 +11,7 @@ controller:
   name: ''
   image: ghcr.io/ansible/awx
   # propose-awx-pin replaces this with the sha256 digest of that image.
-  image_version: devel
+  image_version: "sha256:e37096528788f78fb8f9ebe1255c8f16fda1b4f0929180a83d40ec6be9319680"
 
 gateway:
   create: true

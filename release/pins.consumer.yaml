@@ -14,7 +14,7 @@
 # schema_version: 1
 
 schema_version: 1
-updated: "2026-09-30T12:00:00Z"
+updated: "2026-10-27T12:23:54Z"
 source_repo: awx-platform-images
 # Optional pointers to the images-repo git tags last consumed (per component)
 source_releases:
@@ -39,8 +39,8 @@ images:
     # tag is the tracking label. Clusters pull repository@digest, not :devel.
     # A rebuilt ghcr.io/flippyboy/awx/awx image is applied by images-released.
     repository: ghcr.io/ansible/awx
-    tag: devel
-    digest: ""
-    git_repository: https://github.com/ansible/awx.git
-    git_ref: devel
-    git_commit: ""
+    tag: "devel"
+    digest: "sha256:e37096528788f78fb8f9ebe1255c8f16fda1b4f0929180a83d40ec6be9319680"
+    git_repository: "https://github.com/ansible/awx.git"
+    git_ref: "devel"
+    git_commit: "edabe5d6eb7d89c87a933dbd51fa28dcc7ca3a0e"

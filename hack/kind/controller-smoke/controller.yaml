@@ -301,7 +301,7 @@ spec:
               mountPath: /pki
       containers:
         - name: controller-web
-          image: ghcr.io/ansible/awx:devel
+          image: ghcr.io/ansible/awx@sha256:e37096528788f78fb8f9ebe1255c8f16fda1b4f0929180a83d40ec6be9319680
           imagePullPolicy: IfNotPresent
           command: ["bash", "/usr/local/bin/entrypoint-awx-web.sh"]
           env:
