@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: mirror.gcr.io/library/postgres:15
+          image: mirror.gcr.io/library/postgres:18
           env:
             - name: POSTGRES_USER
               valueFrom:
@@ -79,7 +79,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: init
-          image: mirror.gcr.io/library/postgres:15
+          image: mirror.gcr.io/library/postgres:18
           env:
             - name: PGPASSWORD
               valueFrom:

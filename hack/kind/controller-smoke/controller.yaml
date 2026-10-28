@@ -282,7 +282,7 @@ spec:
         fsGroup: 1000
       initContainers:
         - name: gen-tls
-          image: mirror.gcr.io/library/alpine:3.20
+          image: mirror.gcr.io/library/alpine:3.24
           command:
             - /bin/sh
             - -c

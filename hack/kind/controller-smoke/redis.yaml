@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: redis
-          image: mirror.gcr.io/library/redis:7.4
+          image: mirror.gcr.io/library/redis:8.10
           args:
             - redis-server
             - --bind
