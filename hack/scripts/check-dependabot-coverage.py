@@ -11,10 +11,16 @@ Ansible Galaxy has no Dependabot ecosystem. Collection versions must still
 be explicit so they do not float.
 
 ghcr.io/flippyboy/awx/* tags are our own releases, not dependencies.
+
+--fix copies a tag Dependabot moved onto every consumer it cannot see. The
+dependabot-sync workflow runs it on Dependabot pull requests. ``match: tag``
+consumers need the old tag, so pass --base-catalog with the catalog from the
+base branch.
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -272,6 +278,43 @@ def tags_in(path: Path, repository: str) -> set[str]:
     )
 
 
+# Kind manifests are the Dependabot source for these repositories. The other
+# files hold a copy: either repository:tag, or a split version key.
+MIRRORS = (
+    (
+        "mirror.gcr.io/library/redis",
+        (
+            "hack/kind/controller-smoke/redis.yaml",
+            "hack/kind/platform-smoke/redis-jewel.yaml",
+        ),
+        (
+            ("roles/gateway/defaults/main.yml", "redis_image_version"),
+            ("roles/installer/defaults/main.yml", "_redis_image_version"),
+            ("playbooks/reconcile-controller-standalone.yml", "redis_image_version"),
+            ("playbooks/reconcile-gateway-standalone.yml", "redis_image_version"),
+            ("hack/scripts/kind-reconcile-gateway.sh", "redis_image_version"),
+        ),
+    ),
+    (
+        "mirror.gcr.io/envoyproxy/envoy",
+        (
+            "hack/kind/platform-smoke/envoy.yaml",
+            "hack/kind/platform-smoke/jewel.yaml",
+        ),
+        (
+            ("roles/gateway/defaults/main.yml", "envoy_image_version"),
+            ("playbooks/reconcile-gateway-standalone.yml", "envoy_image_version"),
+            ("hack/scripts/kind-reconcile-gateway.sh", "envoy_image_version"),
+        ),
+    ),
+    (
+        "mirror.gcr.io/library/postgres",
+        ("hack/kind/platform-smoke/postgres.yaml",),
+        (),
+    ),
+)
+
+
 def check_mirrors(errors: list[str]) -> set[tuple[str, str]]:
     """Kind manifests are the Dependabot source for these images.
 
@@ -310,37 +353,8 @@ def check_mirrors(errors: list[str]) -> set[tuple[str, str]]:
             else:
                 allowed.add((rel, ref))
 
-    align(
-        "mirror.gcr.io/library/redis",
-        [
-            "hack/kind/controller-smoke/redis.yaml",
-            "hack/kind/platform-smoke/redis-jewel.yaml",
-        ],
-        [
-            ("roles/gateway/defaults/main.yml", "redis_image_version"),
-            ("roles/installer/defaults/main.yml", "_redis_image_version"),
-            ("playbooks/reconcile-controller-standalone.yml", "redis_image_version"),
-            ("playbooks/reconcile-gateway-standalone.yml", "redis_image_version"),
-            ("hack/scripts/kind-reconcile-gateway.sh", "redis_image_version"),
-        ],
-    )
-    align(
-        "mirror.gcr.io/envoyproxy/envoy",
-        [
-            "hack/kind/platform-smoke/envoy.yaml",
-            "hack/kind/platform-smoke/jewel.yaml",
-        ],
-        [
-            ("roles/gateway/defaults/main.yml", "envoy_image_version"),
-            ("playbooks/reconcile-gateway-standalone.yml", "envoy_image_version"),
-            ("hack/scripts/kind-reconcile-gateway.sh", "envoy_image_version"),
-        ],
-    )
-    align(
-        "mirror.gcr.io/library/postgres",
-        ["hack/kind/platform-smoke/postgres.yaml"],
-        [],
-    )
+    for repository, kind_files, version_files in MIRRORS:
+        align(repository, list(kind_files), list(version_files))
     return allowed
 
 
@@ -357,7 +371,90 @@ def check_workflow_pip(errors: list[str]) -> None:
             )
 
 
+def _tag_re(repository: str) -> re.Pattern[str]:
+    return re.compile(re.escape(repository) + r":([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def _write_if_changed(rel: str, text: str, changed: list[str]) -> None:
+    path = ROOT / rel
+    if path.read_text() != text:
+        path.write_text(text)
+        if rel not in changed:
+            changed.append(rel)
+
+
+def fix(base_catalog: Path | None) -> list[str]:
+    """Copy catalog and kind tags onto every consumer. Return changed files."""
+    changed: list[str] = []
+    old_tags: dict[str, str] = {}
+    if base_catalog is not None and base_catalog.is_file():
+        for entry in catalog_entries(yaml.safe_load(base_catalog.read_text())):
+            old_tags[entry["name"]] = entry["tag"]
+
+    for entry in catalog_entries(yaml.safe_load(CATALOG.read_text())):
+        pattern = _tag_re(entry["repository"])
+        old = old_tags.get(entry["name"])
+        for consumer in entry["consumers"]:
+            rel = consumer["path"]
+            if not (ROOT / rel).is_file():
+                continue
+            text = (ROOT / rel).read_text()
+            if consumer.get("match", "ref") == "ref":
+                text = pattern.sub(f"{entry['repository']}:{entry['tag']}", text)
+            elif old and old != entry["tag"]:
+                text = text.replace(old, entry["tag"])
+            _write_if_changed(rel, text, changed)
+
+    for repository, kind_files, version_files in MIRRORS:
+        pattern = _tag_re(repository)
+        tags: set[str] = set()
+        for rel in kind_files:
+            tags |= set(pattern.findall((ROOT / rel).read_text()))
+        if len(tags) != 1:
+            # Two kind manifests disagree. Leave it for the check to report.
+            continue
+        tag = next(iter(tags))
+        for rel, path in iter_files():
+            try:
+                text = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            if pattern.search(text):
+                _write_if_changed(rel, pattern.sub(f"{repository}:{tag}", text), changed)
+        for rel, key in version_files:
+            key_re = re.compile(
+                rf"^([ \t]*{re.escape(key)}:\s*)([\"']?)[^\"'\s#]+([\"']?)", re.M
+            )
+            # An unquoted 8.10 is the YAML float 8.1. Quote tags that look numeric.
+            numeric = re.fullmatch(r"[\d.]+", tag) is not None
+
+            def replace(match: re.Match[str]) -> str:
+                quote = match.group(2) or ('"' if numeric else "")
+                return f"{match.group(1)}{quote}{tag}{quote}"
+
+            text = (ROOT / rel).read_text()
+            _write_if_changed(rel, key_re.sub(replace, text), changed)
+    return changed
+
+
+def configure(root: Path) -> None:
+    global ROOT, DEPENDABOT, CATALOG
+    ROOT = root.resolve()
+    DEPENDABOT = ROOT / ".github" / "dependabot.yml"
+    CATALOG = ROOT / "hack" / "dependabot" / "images" / "values.yaml"
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--fix", action="store_true", help="copy moved tags onto consumers")
+    parser.add_argument("--base-catalog", type=Path, help="catalog before the update")
+    args = parser.parse_args()
+    configure(args.root)
+    if args.fix:
+        for rel in fix(args.base_catalog):
+            print(f"synced {rel}")
+
     errors: list[str] = []
     ecosystems = load_dependabot()
     allowed = check_catalog(catalog_entries(yaml.safe_load(CATALOG.read_text())), errors)

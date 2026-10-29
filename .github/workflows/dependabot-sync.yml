@@ -1,0 +1,87 @@
+name: dependabot-sync
+
+# Dependabot moves a tag in hack/dependabot/images/values.yaml or in a kind
+# manifest. The copies it cannot see (Ansible defaults, scripts, Jinja
+# fallbacks, the chart) are synced here, so the supply-chain check in ci.yml
+# passes without a hand edit.
+#
+# pull_request_target runs with this repository's secrets. Only the base
+# branch's script runs. The pull request checkout is data that the script
+# rewrites, never code that runs.
+#
+# The push uses OPERATOR_RELEASE_TOKEN so ci.yml runs on the synced commit.
+# A GITHUB_TOKEN push would not start it. After this commit Dependabot stops
+# rebasing the pull request. Comment "@dependabot recreate" to start over.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - hack/dependabot/images/**
+      - hack/kind/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-sync-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: >
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require release token
+        env:
+          TOKEN: ${{ secrets.OPERATOR_RELEASE_TOKEN }}
+        run: |
+          if [[ -z "${TOKEN}" ]]; then
+            echo "::error::Set OPERATOR_RELEASE_TOKEN so this job can push the synced pins."
+            exit 1
+          fi
+
+      - name: Check out the base branch (trusted script)
+        uses: actions/checkout@v7
+        with:
+          path: base
+          persist-credentials: false
+
+      - name: Check out the pull request branch
+        uses: actions/checkout@v7
+        with:
+          path: pr
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.OPERATOR_RELEASE_TOKEN }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install CI requirements
+        run: pip install -r base/hack/ci/requirements.txt
+
+      - name: Copy moved tags onto every consumer
+        run: |
+          set -euo pipefail
+          python3 base/hack/scripts/check-dependabot-coverage.py \
+            --root pr \
+            --fix \
+            --base-catalog base/hack/dependabot/images/values.yaml
+
+      - name: Push the synced pins
+        working-directory: pr
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Consumers already match."
+            exit 0
+          fi
+          git config user.name flippyboy
+          git config user.email "flippyboy@users.noreply.github.com"
+          git commit -am "chore(deps): copy updated image tags to every consumer"
+          git push origin "HEAD:${HEAD_REF}"

@@ -20,7 +20,7 @@
     image_version: "sha256:e37096528788f78fb8f9ebe1255c8f16fda1b4f0929180a83d40ec6be9319680"
     image_pull_policy: IfNotPresent
     redis_image: mirror.gcr.io/library/redis
-    redis_image_version: 7.4
+    redis_image_version: "7.4"
     control_plane_ee_image: quay.io/ansible/awx-ee:latest
     ee_images:
       - name: AWX EE

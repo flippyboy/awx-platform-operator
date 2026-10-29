@@ -38,6 +38,13 @@ updates:
       - dependency-name: "ansible/awx-ee"
       - dependency-name: "ansible/jewel"
       - dependency-name: "awx-compose/jewel"
+      # Data services the operator deploys. A major moves the on-disk format
+      # (postgres 18 changed PGDATA) or the protocol, so it is a deliberate
+      # upgrade, not a weekly bump.
+      - dependency-name: "library/postgres"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "library/redis"
+        update-types: ["version-update:semver-major"]
 
   # Docs site. pip-compile lock is docs/requirements.txt.
   - package-ecosystem: pip
@@ -64,6 +71,23 @@ updates:
       molecule-python:
         patterns:
           - "*"
+
+  # Security overrides for Python packages in the ansible-operator base image.
+  - package-ecosystem: pip
+    directory: /hack/image
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    groups:
+      image-python:
+        patterns:
+          - "*"
+    ignore:
+      # requests-oauthlib targets oauthlib 3.
+      - dependency-name: oauthlib
+        versions: [">=4"]
 
   # CI interpreter packages (pyyaml, jinja2, ansible-core).
   - package-ecosystem: pip
