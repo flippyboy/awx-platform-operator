@@ -3,7 +3,7 @@
 This directory holds a **working clone** of [ansible/awx-operator](https://github.com/ansible/awx-operator)
 with community patches for the modern platform architecture.
 
-See [docs/OPERATOR.md](../docs/OPERATOR.md) for findings and decisions.
+See [architecture.md](architecture.md) for findings and decisions.
 
 ## What landed so far
 
