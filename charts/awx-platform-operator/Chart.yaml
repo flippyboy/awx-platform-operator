@@ -6,9 +6,9 @@ description: >-
   (Controller + Jewel gateway + Envoy + AWXPlatform/AWXGateway CRs).
 type: application
 # Chart version for this monorepo fork
-version: 2026.10.29-3
+version: 2026.10.29-4
 # Operator image tag / app version (local build or published fork)
-appVersion: "2026.10.29-3"
+appVersion: "2026.10.29-4"
 home: https://github.com/ansible/awx-operator
 keywords:
   - awx
