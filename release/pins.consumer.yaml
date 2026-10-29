@@ -14,18 +14,18 @@
 # schema_version: 1
 
 schema_version: 1
-updated: "2026-10-27T12:23:54Z"
+updated: "2026-10-29T10:22:40Z"
 source_repo: awx-platform-images
 # Optional pointers to the images-repo git tags last consumed (per component)
 source_releases:
-  platform-ui: "platform-ui-v0.1.2"
+  platform-ui: "platform-ui-v2026.10.29"
   jewel-with-ui: "jewel-with-ui-v0.1.2"
   awx: ""
 
 images:
   awx-operator:
     repository: ghcr.io/flippyboy/awx/awx-platform-operator
-    tag: "0.1.13"
+    tag: "2026.10.29"
     digest: ""
   jewel-with-ui:
     repository: ghcr.io/flippyboy/awx/jewel-with-ui
@@ -33,8 +33,8 @@ images:
     digest: "sha256:9bc097e0847ee51dd837dba70ed9243a32865ca5d9997d92d661687befb4b8c7"
   platform-ui:
     repository: ghcr.io/flippyboy/awx/platform-ui
-    tag: "0.1.2"
-    digest: "sha256:e56b8427c0e82669a63ecd8d30faa32fec918c64903303793cee6d931e059a53"
+    tag: "2026.10.29"
+    digest: "sha256:80c82c657842d0cc28ecedf177f17630253bd65a2c0fab57db4d8ea8980cc5bd"
   awx:
     # tag is the tracking label. Clusters pull repository@digest, not :devel.
     # A rebuilt ghcr.io/flippyboy/awx/awx image is applied by images-released.
