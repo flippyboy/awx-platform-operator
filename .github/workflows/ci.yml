@@ -82,6 +82,8 @@ jobs:
           done
       - name: Check child CR YAML types
         run: python3 hack/scripts/check-cr-types.py
+      - name: Render AWXPlatform child templates
+        run: ansible-playbook -i localhost, -c local hack/ci/render-platform-templates.yml
 
   supply-chain:
     runs-on: ubuntu-latest

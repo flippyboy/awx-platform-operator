@@ -1,0 +1,49 @@
+---
+# Render the AWXPlatform child CR templates the way the platform role does
+# (lookup('template') | from_yaml) with the chart's platform example values.
+# A template that renders to invalid YAML fails here instead of at reconcile.
+#
+#   ansible-playbook -i localhost, -c local hack/ci/render-platform-templates.yml
+- name: Render AWXPlatform child templates
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../../roles/platform/defaults/main.yml
+  vars:
+    ansible_operator_meta: {name: awx, namespace: awx}
+    admin_user: admin
+    open_source_defaults: true
+    postgres_configuration_secret: awx-postgres-configuration
+    controller:
+      create: true
+      image: ghcr.io/ansible/awx
+      image_version: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    gateway:
+      create: true
+      image: ghcr.io/flippyboy/awx/jewel-with-ui
+      image_version: "2026.10.29"
+      envoy_enabled: true
+    __controller_name: awx-controller
+    __gateway_name: awx-gateway
+    __admin_password_secret: awx-admin-password
+    __postgres_secret: awx-postgres-configuration
+    __redis_secret: ""
+    __ingress_type: none
+    __gateway_service_secret: awx-gateway-controller-service-secret
+    __trust_established: false
+  tasks:
+    - name: Render and parse each child CR
+      ansible.builtin.set_fact:
+        rendered: "{{ rendered | default({}) | combine({item: lookup('template', '../../roles/platform/templates/' ~ item) | from_yaml}) }}"
+      loop:
+        - awx.yaml.j2
+        - awxgateway.yaml.j2
+
+    - name: Check the controller image fields
+      ansible.builtin.assert:
+        that:
+          - rendered['awx.yaml.j2'].kind == 'AWX'
+          - rendered['awx.yaml.j2'].spec.image == controller.image
+          - rendered['awx.yaml.j2'].spec.image_version == controller.image_version
+          - rendered['awxgateway.yaml.j2'].kind == 'AWXGateway'
+          - rendered['awxgateway.yaml.j2'].spec.image_version == gateway.image_version

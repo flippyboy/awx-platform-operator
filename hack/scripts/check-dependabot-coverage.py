@@ -358,6 +358,29 @@ def check_mirrors(errors: list[str]) -> set[tuple[str, str]]:
     return allowed
 
 
+def check_crd_image_defaults(errors: list[str]) -> None:
+    """CRD schema defaults for images are stored in every CR and shadow the
+    role defaults that releases and Dependabot move. Keep them out."""
+
+    def walk(props: dict, path: list[str], rel: str) -> None:
+        for key, schema in props.items():
+            if not isinstance(schema, dict):
+                continue
+            if "image" in key and "pull" not in key and "default" in schema:
+                errors.append(
+                    f"{rel} sets a schema default for {'.'.join(path + [key])} "
+                    f"({schema['default']}); put image defaults in the role"
+                )
+            walk(schema.get("properties") or {}, path + [key], rel)
+
+    for path in sorted((ROOT / "config" / "crd" / "bases").glob("*.yaml")):
+        rel = path.relative_to(ROOT).as_posix()
+        crd = yaml.safe_load(path.read_text())
+        for version in crd["spec"]["versions"]:
+            spec = version["schema"]["openAPIV3Schema"]["properties"].get("spec", {})
+            walk(spec.get("properties") or {}, [], rel)
+
+
 def check_workflow_pip(errors: list[str]) -> None:
     for path in (ROOT / ".github" / "workflows").glob("*.yml"):
         for number, line in enumerate(path.read_text().splitlines(), 1):
@@ -464,6 +487,7 @@ def main() -> int:
     check_actions(ecosystems, errors)
     check_galaxy(errors)
     check_workflow_pip(errors)
+    check_crd_image_defaults(errors)
     if errors:
         print("Dependabot coverage gaps:")
         for err in errors:

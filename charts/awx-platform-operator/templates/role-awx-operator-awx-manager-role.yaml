@@ -92,6 +92,7 @@ rules:
       - patch
       - update
       - watch
+      - delete
   - apiGroups:
       - monitoring.coreos.com
     resources:

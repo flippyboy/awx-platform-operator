@@ -35,14 +35,15 @@ spec:
             spec:
               type: object
               properties:
+                # No schema defaults for images. The API server would store
+                # them in every CR, and they would shadow the role defaults
+                # that each operator release (and Dependabot) moves.
                 image:
-                  description: Jewel container image repository
+                  description: Jewel container image repository (default from the operator release)
                   type: string
-                  default: ghcr.io/ansible/jewel
                 image_version:
-                  description: Jewel image tag
+                  description: Jewel image tag (default from the operator release)
                   type: string
-                  default: latest
                 image_pull_policy:
                   type: string
                   default: IfNotPresent
@@ -68,10 +69,8 @@ spec:
                   default: gateway
                 redis_image:
                   type: string
-                  default: docker.io/redis
                 redis_image_version:
                   type: string
-                  default: "7"
                 redis_url:
                   description: External Redis URL (redis://host:6379/0). Skips managed Redis.
                   type: string
@@ -144,10 +143,8 @@ spec:
                   default: true
                 envoy_image:
                   type: string
-                  default: mirror.gcr.io/envoyproxy/envoy
                 envoy_image_version:
                   type: string
-                  default: v1.36.6
                 # Phase 3 edge (targets Envoy)
                 ingress_type:
                   type: string

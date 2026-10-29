@@ -1,7 +1,7 @@
 # Deploy operator + Jewel gateway only (Controller separate or later)
 operator:
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "2026.10.29-2"
+  tag: "2026.10.29-3"
 
 externalPostgres:
   enabled: true

@@ -18,9 +18,9 @@
     definition:
       apiVersion: '{{ api_version | default("awx.ansible.com/v1beta1") }}'
       kind: '{{ kind | default("AWXGateway") }}'
-      name: '{{ ansible_operator_meta.name }}'
-      namespace: '{{ ansible_operator_meta.namespace }}'
       metadata:
+        name: '{{ ansible_operator_meta.name }}'
+        namespace: '{{ ansible_operator_meta.namespace }}'
         labels:
           app.kubernetes.io/managed-by: awx-operator
           app.kubernetes.io/component: gateway
@@ -343,6 +343,9 @@
     - name: Set TLS secret mode
       set_fact:
         __use_tls_secret: true
+        # cert-manager renews the certificate in place. Jewel reads it at
+        # start, and Envoy inlines it as its trust anchor, so both must roll.
+        __tls_checksum: "{{ tls_secret_info.resources[0].data['tls.crt'] | hash('sha1') }}"
 
     - name: Extract CA PEM for BackendTLSPolicy ConfigMap
       when: create_tls_ca_configmap | default(true) | bool
@@ -391,6 +394,7 @@
     - name: Set TLS secret mode from provided secret
       set_fact:
         __use_tls_secret: true
+        __tls_checksum: "{{ provided_tls_secret.resources[0].data['tls.crt'] | hash('sha1') }}"
         __tls_ca_pem: >-
           {{
             (
