@@ -1,0 +1,19 @@
+# Security overrides for Python packages in the ansible-operator base image
+# (quay.io/operator-framework/ansible-operator). The Dockerfile installs this
+# file with --no-deps, then runs pip check. Dependabot updates the pins.
+#
+# Drop a line once the base image ships that version or newer.
+# oauthlib stays on 3.x: its fix is oauthlib 4, and requests-oauthlib targets 3.
+
+# GHSA-6q48-6c7w-9gw2: emSign roots with compromised intermediate keys.
+certifi==2026.10.23
+cryptography==50.0.2
+urllib3==2.8.0
+msgpack==1.2.4
+pyasn1==0.6.5
+filelock==4.2.4
+virtualenv==21.15.1
+# virtualenv 21.14 and later need these.
+packaging==26.3
+python-discovery==1.6.7
+setuptools==84.2.1

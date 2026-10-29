@@ -1,3 +1,4 @@
+import re
 import shutil
 import unittest
 from datetime import date
@@ -20,6 +21,22 @@ COPIES = (
 )
 
 
+def _pin(relative: str, name: str, key: str = "tag") -> str:
+    """Value in the real tree before a test changes its copy."""
+    text = (ROOT / relative).read_text(encoding="utf-8")
+    return consume_image.read_leaf(text, ("images", name), key)
+
+
+def _controller_version(text: str) -> str:
+    """image_version on the line after the upstream controller image."""
+    match = re.search(
+        rf"image: {re.escape(consume_image.UPSTREAM_AWX_IMAGE)}\n\s+image_version: (.+)",
+        text,
+    )
+    assert match, "no upstream controller image_version"
+    return match.group(1)
+
+
 def _tree(tmp: Path) -> Path:
     for relative in COPIES:
         destination = tmp / relative
@@ -36,6 +53,9 @@ class ConsumeImageTest(unittest.TestCase):
         hold = tempfile.TemporaryDirectory()
         self.addCleanup(hold.cleanup)
         tree = _tree(Path(hold.name))
+        values_path = tree / "charts/awx-platform-operator/values.yaml"
+        controller_before = _controller_version(values_path.read_text(encoding="utf-8"))
+        platform_ui_before = _pin(consume_image.PINS, "platform-ui")
         result = consume_image.apply(
             tree,
             component="jewel-with-ui",
@@ -57,7 +77,7 @@ class ConsumeImageTest(unittest.TestCase):
         )
         self.assertEqual(
             consume_image.read_leaf(pins, ("images", "platform-ui"), "tag"),
-            "0.1.2",
+            platform_ui_before,
         )
         self.assertEqual(
             consume_image.read_leaf(pins, ("images", "awx-operator"), "tag"),
@@ -70,7 +90,8 @@ class ConsumeImageTest(unittest.TestCase):
         )
         self.assertIn('tag: "2026.10.26"', values)
         self.assertEqual(values.count('image_version: "2026.10.26"'), 2)
-        self.assertIn("image_version: devel", values)
+        # The controller pin belongs to propose-awx-pin, not to image releases.
+        self.assertEqual(_controller_version(values), controller_before)
         chart = (tree / consume_image.CHART).read_text(encoding="utf-8")
         self.assertIn("version: 2026.10.26\n", chart)
         self.assertIn('appVersion: "2026.10.26"', chart)
@@ -93,6 +114,7 @@ class ConsumeImageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as hold:
             tree = _tree(Path(hold))
             before = (tree / "roles/gateway/defaults/main.yml").read_text(encoding="utf-8")
+            jewel_before = _pin(consume_image.PINS, "jewel-with-ui")
             consume_image.apply(
                 tree,
                 component="platform-ui",
@@ -110,7 +132,7 @@ class ConsumeImageTest(unittest.TestCase):
             )
             self.assertEqual(
                 consume_image.read_leaf(pins, ("images", "jewel-with-ui"), "tag"),
-                "0.1.2",
+                jewel_before,
             )
 
     def test_awx_build_switches_off_upstream_devel(self):
@@ -219,6 +241,30 @@ class ConsumeImageTest(unittest.TestCase):
             text = kind.read_text(encoding="utf-8")
             self.assertIn(f"image: {consume_image.OUR_AWX_IMAGE}:2026.10.26", text)
             self.assertNotIn(pinned, text)
+
+    def test_notes_list_operator_commits_since_the_last_tag(self):
+        import subprocess
+        import tempfile
+
+        def git(*args):
+            subprocess.run(["git", "-C", hold, *args], check=True, capture_output=True)
+
+        with tempfile.TemporaryDirectory() as hold:
+            git("init", "-q")
+            git("config", "user.email", "test@example.com")
+            git("config", "user.name", "test")
+            git("commit", "-q", "--allow-empty", "-m", "release: v0.1.13")
+            git("tag", "v0.1.13")
+            git("commit", "-q", "--allow-empty", "-m", "fix: rebuild ansible-operator")
+            changes = consume_image.operator_changes(Path(hold))
+            self.assertIn("Commits since `v0.1.13`", changes)
+            self.assertIn("fix: rebuild ansible-operator", changes)
+            self.assertNotIn("release: v0.1.13", changes)
+
+            git("tag", "v2026.10.29")
+            self.assertEqual(
+                consume_image.operator_changes(Path(hold)), "No operator code changes."
+            )
 
     def test_rejects_bad_digest(self):
         import tempfile

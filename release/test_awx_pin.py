@@ -67,6 +67,21 @@ def _tree(tmp: Path) -> Path:
     return tmp
 
 
+def _unpinned(tree: Path) -> Path:
+    """Clear the recorded commit and digest, as before the first proposal."""
+    pins_path = tree / awx_pin.PINS
+    text = pins_path.read_text(encoding="utf-8")
+    for key in ("git_commit", "digest"):
+        text = consume_image.set_leaf(text, ("images", "awx"), key, "")
+    pins_path.write_text(text, encoding="utf-8")
+    return tree
+
+
+def _real_pin(name: str) -> str:
+    text = (ROOT / awx_pin.PINS).read_text(encoding="utf-8")
+    return consume_image.read_leaf(text, ("images", name), "tag")
+
+
 class AwxPinTest(unittest.TestCase):
     def test_tracking_skips_semver(self):
         self.assertNotIn("24.6.1", awx_pin.tracking_ref_candidates("24.6.1"))
@@ -96,8 +111,11 @@ class AwxPinTest(unittest.TestCase):
             ],
             compare=[],
         )
+        jewel = _real_pin("jewel-with-ui")
+        platform_ui = _real_pin("platform-ui")
+        operator = _real_pin("awx-operator")
         with tempfile.TemporaryDirectory() as hold:
-            tree = _tree(Path(hold))
+            tree = _unpinned(_tree(Path(hold)))
             result = self._propose(tree, fake)
             self.assertTrue(result.changed)
             self.assertEqual(fake.image_tags, [f"{awx_pin.UPSTREAM_IMAGE}:devel"])
@@ -108,16 +126,16 @@ class AwxPinTest(unittest.TestCase):
             self.assertEqual(consume_image.read_leaf(pins, ("images", "awx"), "git_ref"), "devel")
             self.assertEqual(consume_image.read_leaf(pins, ("images", "awx"), "tag"), "devel")
             self.assertEqual(consume_image.read_leaf(pins, ("images", "awx"), "repository"), awx_pin.UPSTREAM_IMAGE)
-            self.assertEqual(consume_image.read_leaf(pins, ("images", "jewel-with-ui"), "tag"), "0.1.2")
-            self.assertEqual(consume_image.read_leaf(pins, ("images", "platform-ui"), "tag"), "0.1.2")
-            self.assertEqual(consume_image.read_leaf(pins, ("images", "awx-operator"), "tag"), "0.1.13")
+            self.assertEqual(consume_image.read_leaf(pins, ("images", "jewel-with-ui"), "tag"), jewel)
+            self.assertEqual(consume_image.read_leaf(pins, ("images", "platform-ui"), "tag"), platform_ui)
+            self.assertEqual(consume_image.read_leaf(pins, ("images", "awx-operator"), "tag"), operator)
             self.assertEqual(consume_image.read_leaf(pins, ("source_releases",), "awx"), "")
 
             values = (tree / "charts/awx-platform-operator/values.yaml").read_text(encoding="utf-8")
             self.assertIn(f'image_version: "{DIGEST}"', values)
             self.assertNotIn("image_version: devel", values)
-            self.assertIn('image_version: "0.1.2"', values)
-            self.assertIn('tag: "0.1.13"', values)
+            self.assertIn(f'image_version: "{jewel}"', values)
+            self.assertIn(f'tag: "{operator}"', values)
             self.assertIn(f"image: {awx_pin.UPSTREAM_IMAGE}\n", values)
             self.assertNotIn(f"image: {consume_image.OUR_AWX_IMAGE}\n", values)
 
@@ -244,7 +262,7 @@ class AwxPinTest(unittest.TestCase):
             compare=[],
         )
         with tempfile.TemporaryDirectory() as hold:
-            tree = _tree(Path(hold))
+            tree = _unpinned(_tree(Path(hold)))
             pins_path = tree / awx_pin.PINS
             pins_path.write_text(
                 consume_image.set_leaf(
