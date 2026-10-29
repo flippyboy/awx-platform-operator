@@ -2,7 +2,7 @@
 # built with Go 1.26.3 and modules that have known CVEs. Rebuild the same tag
 # with a current Go toolchain and patched x/net, x/text, and grpc. Drop this
 # stage once an upstream release ships those versions.
-FROM golang:1.26.10 AS ansible-operator
+FROM golang:1.27.2 AS ansible-operator
 
 ARG ANSIBLE_OPERATOR_VERSION=v1.42.3
 WORKDIR /src

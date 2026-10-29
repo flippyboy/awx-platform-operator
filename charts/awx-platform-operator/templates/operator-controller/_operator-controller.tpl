@@ -32,7 +32,7 @@ spec:
             - --upstream=http://127.0.0.1:8080/
             - --logtostderr=true
             - --v=0
-          image: {{ .Values.operator.kubeRbacProxyImage | default "quay.io/brancz/kube-rbac-proxy:v0.15.0" }}
+          image: {{ .Values.operator.kubeRbacProxyImage | default "quay.io/brancz/kube-rbac-proxy:v0.23.1" }}
           name: kube-rbac-proxy
           ports:
             - containerPort: 8443

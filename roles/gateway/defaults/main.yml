@@ -54,7 +54,7 @@ ui_image: ''
 
 envoy_enabled: true
 envoy_image: mirror.gcr.io/envoyproxy/envoy
-envoy_image_version: v1.36.6
+envoy_image_version: v1.40.2
 
 # Phase 3 — edge Ingress (targets Envoy, not Jewel/Controller)
 ingress_type: none   # none | ingress | route
@@ -77,7 +77,7 @@ controller_service_port: "80"
 controller_service_https: false
 # After register Job: generate_service_secret controller → K8s Secret
 generate_controller_service_secret: true
-register_image: mirror.gcr.io/library/python:3.12-slim
+register_image: mirror.gcr.io/library/python:3.13-slim
 
 # Set by operator meta
 deployment_type: awx

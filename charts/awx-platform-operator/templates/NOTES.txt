@@ -12,7 +12,7 @@ Resources enabled:
 TLS / cert-manager:
   Default gateway TLS uses cert-manager (create_certificate=true).
   Install cert-manager if not present:
-    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.21.3/cert-manager.yaml
   Shared Secret: {gateway}-tls (Jewel + Envoy)
   CA ConfigMap:  {gateway}-tls-ca  → use with Gateway API BackendTLSPolicy
   Example: charts/awx-platform-operator/examples/backend-tls-policy.yaml

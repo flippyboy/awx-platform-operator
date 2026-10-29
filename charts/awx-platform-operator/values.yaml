@@ -21,7 +21,7 @@ operator:
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
   # kube-rbac-proxy sidecar
-  kubeRbacProxyImage: quay.io/brancz/kube-rbac-proxy:v0.15.0
+  kubeRbacProxyImage: quay.io/brancz/kube-rbac-proxy:v0.23.1
   ansibleDebugLogs: "false"
 
 # Merged into the controller Deployment template (upstream pattern)
@@ -93,7 +93,7 @@ AWX:
 # cert-manager (required for default gateway TLS)
 # ---------------------------------------------------------------------------
 # Install cert-manager cluster-wide before enabling create_certificate:
-#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.21.3/cert-manager.yaml
 #   # or: ./hack/scripts/kind-install-cert-manager.sh
 #
 # The operator creates a namespaced self-signed Issuer + Certificate and mounts
