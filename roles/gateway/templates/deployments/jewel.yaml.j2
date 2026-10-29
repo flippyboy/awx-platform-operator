@@ -33,7 +33,7 @@ spec:
         checksum/redis-configuration: "{{ redis_secret_info.resources[0].data | to_json | hash('sha1') }}"
 {% endif %}
 {% if __use_tls_secret | default(false) %}
-        checksum/tls-secret: '{{ __tls_secret }}'
+        checksum/tls-secret: '{{ __tls_checksum | default(__tls_secret) }}'
 {% endif %}
     spec:
       automountServiceAccountToken: false

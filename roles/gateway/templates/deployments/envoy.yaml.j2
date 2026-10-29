@@ -102,7 +102,7 @@ spec:
       annotations:
         awx.ansible.com/tls-mode: '{{ "secret" if (__use_tls_secret | default(false)) else "init-generated" }}'
 {% if __use_tls_secret | default(false) %}
-        checksum/tls-secret: '{{ __tls_secret }}'
+        checksum/tls-secret: '{{ __tls_checksum | default(__tls_secret) }}'
 {% endif %}
     spec:
       automountServiceAccountToken: false
