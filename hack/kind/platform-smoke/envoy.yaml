@@ -92,7 +92,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: envoy
-          image: mirror.gcr.io/envoyproxy/envoy:v1.36.6
+          image: mirror.gcr.io/envoyproxy/envoy:v1.40.2
           args: ["--config-path", "/etc/envoy/envoy.yaml"]
           securityContext:
             allowPrivilegeEscalation: false
