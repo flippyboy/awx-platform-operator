@@ -46,7 +46,7 @@ helm template awx-platform charts/awx-platform-operator \
 
 ```bash
 ./hack/scripts/kind-install-cert-manager.sh
-# or: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+# or: kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.21.3/cert-manager.yaml
 ```
 
 Gateway API `BackendTLSPolicy` example: [`examples/backend-tls-policy.yaml`](./examples/backend-tls-policy.yaml).

@@ -19,7 +19,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: trust-check
-          image: '{{ trust_image | default("mirror.gcr.io/library/python:3.12-slim") }}'
+          image: '{{ trust_image | default("mirror.gcr.io/library/python:3.13-slim") }}'
           env:
             - name: JEWEL_URL
               value: 'https://{{ __gateway_name }}.{{ ansible_operator_meta.namespace }}.svc:8000'

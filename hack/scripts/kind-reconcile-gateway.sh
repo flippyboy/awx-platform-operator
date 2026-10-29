@@ -126,7 +126,7 @@ cat > "$PLAY" <<EOF
     redis_configuration_secret: "${REDIS_SECRET_VAR}"
     envoy_enabled: true
     envoy_image: mirror.gcr.io/envoyproxy/envoy
-    envoy_image_version: v1.36.6
+    envoy_image_version: v1.40.2
     ingress_type: ${INGRESS_TYPE}
     ingress_class_name: nginx
     ingress_hosts:
