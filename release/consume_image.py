@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -159,6 +160,30 @@ def _set_chart_version(text: str, version: str) -> str:
     return text
 
 
+def operator_changes(root: Path) -> str:
+    """Commits on this branch since the last operator tag, newest first."""
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    try:
+        last = git("describe", "--tags", "--abbrev=0", "--match", "v*")
+        log = git("log", "--no-merges", "--format=%h %s", f"{last}..HEAD")
+    except (OSError, subprocess.CalledProcessError):
+        log = ""
+        last = ""
+    lines = [line for line in log.splitlines() if line.strip()]
+    if not lines:
+        return "No operator code changes."
+    items = "\n".join(f"- `{line[:line.index(' ')]}` {line[line.index(' ') + 1:]}" for line in lines)
+    return f"Commits since `{last}`:\n\n{items}"
+
+
 def awx_changelog(root: Path) -> str:
     """Commit list from the last merged AWX pin proposal, if there is one."""
     path = root / "release" / "notes" / "PROPOSED-awx.md"
@@ -185,6 +210,7 @@ def _notes(
     previous: dict[str, tuple[str, str, str, str]],
     repository: str,
     awx_changes: str,
+    operator_changes: str,
 ) -> str:
     rows = []
     for name in ("platform-ui", "jewel-with-ui", "awx"):
@@ -209,7 +235,9 @@ Consumed `{git_tag}` from awx-platform-images.
 
 ## Operator / role / CRD changes
 
-No operator code changes. This release records the image published by `{git_tag}`.
+This release records the image published by `{git_tag}`.
+
+{operator_changes}
 
 ## Helm chart
 
@@ -360,6 +388,7 @@ def apply(
             previous=previous,
             repository=repository,
             awx_changes=awx_changelog(root),
+            operator_changes=operator_changes(root),
         ),
         encoding="utf-8",
     )
