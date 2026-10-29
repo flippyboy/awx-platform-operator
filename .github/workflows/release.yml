@@ -74,9 +74,31 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          pull: true
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # Report only. Fixable findings belong in the Dockerfile or
+      # hack/image/requirements-security.txt.
+      - name: Scan operator image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.OPERATOR_IMAGE }}:${{ steps.ver.outputs.version }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          format: table
+          output: trivy.txt
+          exit-code: "0"
+
+      - name: Add scan to the job summary
+        run: |
+          {
+            echo "### Trivy: ${OPERATOR_IMAGE}:${{ steps.ver.outputs.version }}"
+            echo '```'
+            cat trivy.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install Helm
         run: |
@@ -99,7 +121,7 @@ jobs:
           helm push dist/awx-platform-operator-helm-*.tgz "${HELM_OCI_REGISTRY}"
 
       - name: Attach chart tarball to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           # v0.1.13 → release/notes/v0.1.13.md, v2026.10.26 → release/notes/v2026.10.26.md
           body_path: release/notes/v${{ steps.ver.outputs.version }}.md

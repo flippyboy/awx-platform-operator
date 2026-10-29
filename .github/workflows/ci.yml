@@ -96,3 +96,24 @@ jobs:
         run: python3 hack/scripts/check-dependabot-coverage.py
       - name: Calendar version rules
         run: python3 -m unittest discover -s release -p 'test_*.py'
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build operator image
+        run: docker build --pull -t awx-platform-operator:ci .
+      - name: Smoke-test the rebuilt ansible-operator
+        run: docker run --rm --entrypoint ansible-operator awx-platform-operator:ci version
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: awx-platform-operator:ci
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          format: table
+          output: trivy.txt
+          exit-code: "0"
+      - name: Add scan to the job summary
+        run: |
+          { echo "### Trivy: awx-platform-operator"; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
