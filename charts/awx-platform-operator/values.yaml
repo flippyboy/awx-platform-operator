@@ -159,7 +159,7 @@ AWXPlatform:
     controller:
       create: true
       image: ghcr.io/ansible/awx
-      image_version: "sha256:e37096528788f78fb8f9ebe1255c8f16fda1b4f0929180a83d40ec6be9319680"
+      image_version: "sha256:db7b4c9b3bd225e6d28c4b210f15c3d4d7799ffb0ab55dc352b5b0b46724a8ab"
     gateway:
       create: true
       image: ghcr.io/flippyboy/awx/jewel-with-ui
