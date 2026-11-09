@@ -37,7 +37,7 @@ AWXPlatform:
       create: true
       name: demo-controller
       image: ghcr.io/ansible/awx
-      image_version: "sha256:e37096528788f78fb8f9ebe1255c8f16fda1b4f0929180a83d40ec6be9319680"
+      image_version: "sha256:27c9bf689f057a40101289033d71dfb863968dbc0eff045da83c396abcdf820c"
     gateway:
       create: true
       name: demo-gateway
