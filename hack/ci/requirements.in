@@ -3,4 +3,4 @@
 # Dependabot is configured to ignore ansible-core >=2.19 in this directory.
 pyyaml
 jinja2
-ansible-core>=2.16,<2.19
+ansible-core>=2.18.20,<2.19
