@@ -5,7 +5,7 @@
 
 operator:
   image: ghcr.io/flippyboy/awx/awx-platform-operator
-  tag: "2026.11.09"
+  tag: "2026.11.16"
   imagePullPolicy: IfNotPresent
   ansibleDebugLogs: "true"
 
