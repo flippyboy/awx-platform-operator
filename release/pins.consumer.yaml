@@ -14,23 +14,23 @@
 # schema_version: 1
 
 schema_version: 1
-updated: "2026-11-16T19:03:54Z"
+updated: "2026-11-16T19:08:07Z"
 source_repo: awx-platform-images
 # Optional pointers to the images-repo git tags last consumed (per component)
 source_releases:
   platform-ui: "platform-ui-v2026.11.16"
-  jewel-with-ui: "jewel-with-ui-v2026.10.29-2"
+  jewel-with-ui: "jewel-with-ui-v2026.11.16"
   awx: ""
 
 images:
   awx-operator:
     repository: ghcr.io/flippyboy/awx/awx-platform-operator
-    tag: "2026.11.16"
+    tag: "2026.11.16-1"
     digest: ""
   jewel-with-ui:
     repository: ghcr.io/flippyboy/awx/jewel-with-ui
-    tag: "2026.10.29-2"
-    digest: "sha256:dbfa48308331faf71a5a43bc5c65e81dc7a8c8cd6710ac9effb6d47daa9a76cc"
+    tag: "2026.11.16"
+    digest: "sha256:32c7e167c03dcc2a9eb44ad5c023c2eb20f020c8d01dbb0f487c149ff32a1983"
   platform-ui:
     repository: ghcr.io/flippyboy/awx/platform-ui
     tag: "2026.11.16"
