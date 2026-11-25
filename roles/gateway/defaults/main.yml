@@ -77,7 +77,7 @@ controller_service_port: "80"
 controller_service_https: false
 # After register Job: generate_service_secret controller → K8s Secret
 generate_controller_service_secret: true
-register_image: mirror.gcr.io/library/python:3.13-slim
+register_image: mirror.gcr.io/library/python:3.15-slim
 
 # Set by operator meta
 deployment_type: awx
